@@ -1,0 +1,1 @@
+helm uninstall web-streaming-example --wait --ignore-not-found

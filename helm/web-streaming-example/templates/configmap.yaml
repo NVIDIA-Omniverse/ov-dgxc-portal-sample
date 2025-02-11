@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "web-streaming-example.fullname" . }}
+  labels:
+    {{- include "web-streaming-example.labels" . | nindent 4 }}
+data:
+  main.json: |
+    {
+      "auth": {
+        "clientId": "{{ .Values.config.auth.clientId }}",
+        "authority": "{{ .Values.config.auth.authority }}",
+        "redirectUri": "{{ .Values.config.auth.redirectUri }}",
+        "scope": "{{ .Values.config.auth.scope }}"
+      },
+      "endpoints": {
+        "backend": "{{ .Values.config.endpoints.backend }}",
+        "nucleus": "{{ .Values.config.endpoints.nucleus }}"
+      }
+    }
+
+  nginx.conf: |
+    pid /tmp/nginx.pid;
+
+    http {
+      include /etc/nginx/mime.types;
+      disable_symlinks off;
+
+      server {
+        listen {{ .Values.service.ports.web }};
+        server_name localhost;
+        client_max_body_size 32m;
+        client_body_buffer_size 128k;
+        client_header_buffer_size 5120k;
+        large_client_header_buffers 16 5120k;
+
+        root /usr/share/nginx/html;
+
+        location / {
+          add_header Strict-Transport-Security max-age=3600;
+          add_header Content-Security-Policy "{{ .Values.config.csp }}";
+          try_files $uri /index.html;
+        }
+      }
+    }
+
+    events {}
+
+  settings.toml: |
+    root_path = "/api"
+
+    admin_group = "{{ .Values.config.auth.adminGroup }}"
+    client_id = "{{ .Values.config.auth.clientId }}"
+    jwks_uri = "{{ .Values.config.auth.jwks }}"
+    jwks_alg = "{{ .Values.config.auth.jwksAlg }}"
+    jwks_ttl = {{ .Values.config.auth.jwksTtl }}
+    userinfo_endpoint = "{{ .Values.config.auth.userinfo }}"
+    userinfo_ttl = {{ .Values.config.auth.userinfoTtl }}
+    max_app_instances_count = {{ .Values.config.maxAppInstancesCount }}
+
+    nvcf_api_key = "{{ .Values.nvcf.key }}"
+    nvcf_control_endpoint = "{{ .Values.nvcf.controlEndpoint }}"
+    nvcf_signaling_endpoint = "{{ .Values.nvcf.signalingEndpoint }}"
+    nvcf_cache_ttl = {{ .Values.nvcf.cacheTtl }}
+
+    session_ttl = {{ .Values.config.sessionTtl }}
+    session_watch_interval = {{ .Values.config.sessionWatchInterval }}
+    session_idle_timeout = {{ .Values.config.sessionIdleTimeout }}

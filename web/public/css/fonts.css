@@ -1,0 +1,25 @@
+@font-face {
+  font-family: "Open Sans";
+  src: url("../fonts/OpenSans-Regular.ttf");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Open Sans";
+  font-weight: bold;
+  src: url("../fonts/OpenSans-Bold.ttf");
+}
+
+@font-face {
+  font-family: "Open Sans";
+  font-style: italic;
+  src: url("../fonts/OpenSans-Italic.ttf");
+}
+
+@font-face {
+  font-family: "Open Sans";
+  font-weight: bold;
+  font-style: italic;
+  src: url("../fonts/OpenSans-BoldItalic.ttf");
+}

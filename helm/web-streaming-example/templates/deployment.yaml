@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "web-streaming-example.fullname" . }}
+  labels:
+    {{- include "web-streaming-example.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "web-streaming-example.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "web-streaming-example.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "web-streaming-example.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: web
+          securityContext:
+            {{- toYaml .Values.securityContext.web | nindent 12 }}
+          image: "{{ .Values.images.web.repository }}:{{ .Values.images.web.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.images.web.pullPolicy }}
+          ports:
+            - name: web
+              containerPort: {{ .Values.service.ports.web }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: web-config
+              mountPath: "/usr/share/nginx/html/config/"
+              readOnly: true
+            - name: nginx-config
+              mountPath: "/etc/nginx/config/"
+              readOnly: true
+        - name: backend
+          securityContext:
+            {{- toYaml .Values.securityContext.backend | nindent 12 }}
+          image: "{{ .Values.images.backend.repository }}:{{ .Values.images.backend.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.images.backend.pullPolicy }}
+          env:
+            - name: SETTINGS_PATH
+              value: "/app/config/settings.toml"
+          ports:
+            - name: backend
+              containerPort: {{ .Values.service.ports.backend }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: "/app/db/"
+              name: backend-db
+            - mountPath: "/app/config/"
+              name: backend-config
+      volumes:
+        - name: backend-db
+          persistentVolumeClaim:
+            claimName: {{ include "web-streaming-example.fullname" . }}
+        - name: backend-config
+          configMap:
+            name: {{ include "web-streaming-example.fullname" . }}
+            items:
+              - key: "settings.toml"
+                path: "settings.toml"
+                mode: 0777
+        - name: web-config
+          configMap:
+            name: {{ include "web-streaming-example.fullname" . }}
+            items:
+              - key: "main.json"
+                path: "main.json"
+                mode: 0777
+        - name: nginx-config
+          configMap:
+            name: {{ include "web-streaming-example.fullname" . }}
+            items:
+              - key: "nginx.conf"
+                path: "nginx.conf"
+                mode: 0777
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,170 @@
+# Default values for web-streaming-example.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+images:
+  backend:
+    repository: "ovc-sample-registry:42607/web-streaming-example/backend"
+    pullPolicy: Always
+    tag: "latest"
+  web:
+    repository: "ovc-sample-registry:42607/web-streaming-example/web"
+    pullPolicy: Always
+    tag: "latest"
+
+nvcf:
+  # The service API key generated on the NGC portal
+  key: ""
+
+  # The endpoint used by the backend to talk to NVCF API
+  controlEndpoint: "https://api.nvcf.nvidia.com"
+
+  # The endpoint used by the backend to connect to NVCF functions with WebSockets
+  signalingEndpoint: "wss://grpc.nvcf.nvidia.com"
+
+  # Number of seconds to cache data pulled from NVCF API
+  cacheTtl: 300
+
+config:
+  auth:
+    # Client ID of your application provided by the IdP
+    clientId: ""
+
+    # The Customer Web App URL where the IdP must redirect the user back.
+    # This is the URL used for the example. Must end with /openid
+    redirectUri: "https://ovc-sample:3180/openid"
+
+    # The identity provider URL (where users will be redirected for authentication)
+    authority: ""
+
+    # The identity provider URL for obtaining public keys
+    jwks: ""
+
+    # The algorithm used by the IdP to generate ID tokens
+    jwksAlg: "ES256"
+
+    # Number of seconds to cache public keys (JWK) retrieved from jwks_uri
+    jwksTtl: 300
+
+    # The identity provider URL for obtaining detailed user information
+    userinfo: ""
+
+    # Number of seconds to cache user info retrieved from userinfo_endpoint
+    userinfoTtl: 300
+
+    # Scopes that define information required from the identity provider
+    scope: "openid profile email"
+
+    # The group ID that user must be a member of to update the database.
+    # Verified by checking the user ID token and calling /userinfo endpoint.
+    adminGroup: "admin"
+
+  endpoints:
+    backend: "https://ovc-sample:3180/api"
+    nucleus: ""
+
+  # Maximum session duration in seconds before users get disconnected.
+  sessionTtl: 28800
+
+  # Defines how often (in seconds) the service checks for session aliveness (timeouts and idle state).
+  sessionWatchInterval: 60
+
+  # Number of seconds before idle sessions are stopped.
+  # The default value is equal to NVCF session reconnect timeout.
+  sessionIdleTimeout: 300
+
+  # Maximum amount of allowed running sessions for each user per application
+  maxAppInstancesCount: 1
+
+  # Defines Content-Security-Policy for the web frontend
+  csp: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsUser: 101
+  runAsGroup: 101
+  fsGroup: 101
+
+securityContext:
+  backend:
+    runAsUser: 101
+    runAsGroup: 101
+  web:
+    runAsUser: 101
+    runAsGroup: 101
+
+service:
+  type: ClusterIP
+  annotations: {}
+  ports:
+    web: 8080
+    backend: 8000
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  hosts:
+    - host: ovc-sample
+  tls:
+    - secretName: web-streaming-example
+      hosts:
+        - ovc-sample
+
+certificate:
+  create: true
+
+clusterIssuer:
+  create: true
+
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+persistence:
+  accessModes:
+    - ReadWriteOnce
+  size: 1G
+  storageClass: ""
+  keep: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
