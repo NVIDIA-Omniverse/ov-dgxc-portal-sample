@@ -2,11 +2,13 @@ import asyncio
 import traceback
 from contextlib import asynccontextmanager
 
+import aerich
 import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from tortoise import Tortoise
 from tortoise.contrib.fastapi import RegisterTortoise
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
@@ -26,14 +28,17 @@ async def configure_api(app: FastAPI):
     try:
         async with RegisterTortoise(
             app,
-            db_url=settings.database_url,
-            modules={"models": ["app.models"]},
+            config=settings.tortoise_orm(),
             generate_schemas=True,
         ):
-            session_termination_task = asyncio.create_task(watch_session_timeout())
+            session_termination_task = asyncio.create_task(
+                watch_session_timeout()
+            )
             session_termination_task.add_done_callback(watcher_task_done)
 
-            session_idle_termination_task = asyncio.create_task(watch_idle_sessions())
+            session_idle_termination_task = asyncio.create_task(
+                watch_idle_sessions()
+            )
             session_idle_termination_task.add_done_callback(watcher_task_done)
             yield
     finally:
@@ -105,4 +110,23 @@ def start():
         ws_ping_timeout=None,
         log_level="info",
         log_config=logging_config,
+        h11_max_incomplete_event_size=settings.h11_max_incomplete_event_size,
     )
+
+
+def migrations():
+    async def migrate():
+        config = settings.tortoise_orm()
+        await Tortoise.init(config)
+
+        try:
+            async with aerich.Command(
+                tortoise_config=config,
+                app="models"
+            ) as command:
+                await command.upgrade()
+        finally:
+            await Tortoise.close_connections()
+
+    asyncio.run(migrate())
+

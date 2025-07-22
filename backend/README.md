@@ -82,6 +82,8 @@ userinfo_ttl = 900
 admin_group = "admin"
 ```
 
+Use `poetry run migrations` command to initialize the database.
+
 Use `poetry run api` command to run the service. Open http://localhost:8000 in your browser to see the API docs.
 
 ### API

@@ -1,5 +1,3 @@
-import os
-
 import jwt
 import pytest
 from asgi_lifespan import LifespanManager
@@ -29,14 +27,13 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
 
 @pytest.fixture
-def database(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "sqlite://test.sqlite3")
-    settings.database_url = "sqlite://test.sqlite3"
+async def database(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite://:memory:")
+    settings.database_url = "sqlite://:memory:"
     try:
         yield
     finally:
         monkeypatch.delenv("DATABASE_URL")
-        os.remove("test.sqlite3")
 
 
 @pytest.fixture

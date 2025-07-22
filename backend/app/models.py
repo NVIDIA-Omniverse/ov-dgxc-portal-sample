@@ -89,7 +89,7 @@ class AuthenticationType(str, Enum):
     # The application does not require passing user authentication
     none = "NONE"
 
-    # The application requires passing the ID token received from the IdP
+    # The application requires passing the access token received from the IdP
     openid = "OPENID"
 
     # The application requires passing a Nucleus access token
@@ -114,15 +114,22 @@ class PublishedAppModel(Model):
         default=AuthenticationType.none.value,
         null=True,
     )
+    media_server = fields.CharField(max_length=255, default=None, null=True)
+    media_port = fields.IntField(null=True, default=None)
 
     class Meta:
         table = "published_app"
         unique_together = (("function_id", "function_version_id"),)
 
 
-PublishedApp: Type[PydanticModel] = pydantic_model_creator(
+_PublishedApp: Type[PydanticModel] = pydantic_model_creator(
     PublishedAppModel, name="PublishedApp", exclude=("id",)
 )
+
+
+class PublishedApp(_PublishedApp):
+    media_server: Optional[str] = None
+    media_port: Optional[int] = None
 
 
 class PublishedAppResponse(PublishedApp):

@@ -6,9 +6,7 @@ import { z } from "zod";
  * accept all fields in snake case notation and transform them to camel case.
  * @param schema
  */
-export function fromSnakeCaseSchema<T extends z.ZodTypeAny>(
-  schema: T,
-) {
+export function fromSnakeCaseSchema<T extends z.ZodTypeAny>(schema: T) {
   return z
     .any()
     .transform((record) => mapKeys(record as Record<string, string>, camel))

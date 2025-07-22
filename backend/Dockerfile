@@ -33,6 +33,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 
 WORKDIR /app
 COPY app app
+COPY migrations migrations
 COPY poetry.lock .
 COPY pyproject.toml .
 COPY README.md .

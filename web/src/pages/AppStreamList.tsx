@@ -12,6 +12,7 @@ import { notifications } from "@mantine/notifications";
 import { IconDeviceDesktop } from "@tabler/icons-react";
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import { useCallback } from "react";
+import { useAuth } from "react-oidc-context";
 import { NavLink, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import LoaderError from "../components/LoaderError";
@@ -94,6 +95,7 @@ function AppStreamListModal({
   onSessionStart: () => void;
   onSessionCancel: () => void;
 }) {
+  const auth = useAuth();
   return (
     <Modal
       centered
@@ -115,6 +117,7 @@ function AppStreamListModal({
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>#</Table.Th>
+                  <Table.Th>User</Table.Th>
                   <Table.Th w={125}>Status</Table.Th>
                   <Table.Th>Start date</Table.Th>
                   <Table.Th>End date</Table.Th>
@@ -126,6 +129,7 @@ function AppStreamListModal({
                 {query.data?.items.map((session) => (
                   <Table.Tr key={session.id} h={50}>
                     <Table.Td fz={"xs"}>{session.id}</Table.Td>
+                    <Table.Td fz={"xs"}>{session.userName}</Table.Td>
                     <Table.Td>
                       <SessionStatus status={session.status} />
                     </Table.Td>
@@ -140,14 +144,15 @@ function AppStreamListModal({
                     </Table.Td>
                     <Table.Td>
                       <Group justify={"end"}>
-                        {session.status === "IDLE" && (
-                          <Button
-                            component={NavLink}
-                            to={`/app/${appId}/sessions/${session.id}`}
-                          >
-                            Reconnect
-                          </Button>
-                        )}
+                        {session.status === "IDLE" &&
+                          session.userId === auth.user?.profile?.sub && (
+                            <Button
+                              component={NavLink}
+                              to={`/app/${appId}/sessions/${session.id}`}
+                            >
+                              Reconnect
+                            </Button>
+                          )}
                         {session.status !== "STOPPED" && (
                           <SessionTerminateButton session={session} />
                         )}

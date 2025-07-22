@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { fromSnakeCaseSchema } from "../util.ts";
+
+import { fromSnakeCaseSchema } from "../util/Schemas";
 
 
 /**

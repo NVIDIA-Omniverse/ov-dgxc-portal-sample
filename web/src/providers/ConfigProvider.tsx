@@ -23,6 +23,9 @@ const Config = z.object({
     // The URI used for redirecting the user to the identity provider.
     authority: z.string().min(1, "Required"),
 
+    // The URI to retrieve OpenID Connect configuration from the identity provider
+    metadataUri: z.string().url().optional(),
+
     // Scopes required from the identity provider.
     // Define what fields (claims) become available in the ID token.
     scope: z.string().default("openid profile email nca"),

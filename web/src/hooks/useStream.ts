@@ -11,12 +11,13 @@ import {
 } from "@nvidia/omniverse-webrtc-streaming-library";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Config } from "../providers/ConfigProvider";
+import { StreamingApp } from "../state/Apps";
 import { useConfig } from "./useConfig";
 import useError from "./useError";
 import useStreamStart, { streamStartNotification } from "./useStreamStart";
 
 export interface UseStreamOptions {
-  appId: string;
+  app: StreamingApp;
   sessionId: string;
   videoElementId?: string;
   audioElementId?: string;
@@ -29,7 +30,7 @@ export interface UseStreamResult {
 }
 
 export default function useStream({
-  appId,
+  app,
   sessionId,
   videoElementId = "stream-video",
   audioElementId = "stream-audio",
@@ -40,7 +41,7 @@ export default function useStream({
 
   const initialized = useRef(false);
 
-  const { mutate: startNewSession } = useStreamStart(appId);
+  const { mutate: startNewSession } = useStreamStart(app.id);
   const startNewSessionRef = useRef(startNewSession);
   startNewSessionRef.current = startNewSession;
 
@@ -94,7 +95,7 @@ export default function useStream({
       console.log("onCustomEvent", message);
     }
 
-    const params = createStreamConfig(sessionId, config);
+    const params = createStreamConfig(app, sessionId, config);
 
     async function connect() {
       try {
@@ -149,7 +150,7 @@ export default function useStream({
         void AppStreamer.terminate();
       }
     };
-  }, [sessionId, videoElementId, audioElementId, config, setError]);
+  }, [app, sessionId, videoElementId, audioElementId, config, setError]);
 
   const terminate = useCallback(async () => {
     try {
@@ -192,11 +193,13 @@ async function checkSession(
  * Returns URLSearchParams instance with values that must be passed to streamConfig object in
  * the `urlLocation.search` field.
  *
+ * @param app
  * @param sessionId
  * @param config
  * @returns {URLSearchParams}
  */
 function createStreamConfig(
+  app: StreamingApp,
   sessionId: string,
   config: Config,
 ): Partial<DirectConfig> {
@@ -213,9 +216,13 @@ function createStreamConfig(
     server: "",
   };
 
-  // Commented code below enables PE/PLS, replace the <IP_OF_PRIVATE_ENDPOINT> with the IP of the private endpoint created in Azure:
-  // params.mediaServer = "<IP_OF_PRIVATE_ENDPOINT>";
-  //
+  // If specified, enables the private endpoint created in Azure
+  if (app.mediaServer) {
+    params.mediaServer = app.mediaServer;
+    if (app.mediaPort) {
+      params.mediaPort = app.mediaPort;
+    }
+  }
 
   const signalingURL = createStreamURL(sessionId, config);
   params.signalingServer = signalingURL.hostname;

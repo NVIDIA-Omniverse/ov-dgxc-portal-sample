@@ -10,7 +10,7 @@ logger = logging.getLogger("uvicorn.error")
 
 settings_path = os.getenv("SETTINGS_PATH", "settings.toml")
 
-# Maximum session length for NVCF functions is 8 hours.
+# Maximum session length for NVCF functions on GFN is 8 hours.
 MAX_SESSION_TTL = 60 * 60 * 8
 
 
@@ -48,11 +48,13 @@ class Settings:
     database_url: str = "sqlite://db/db.sqlite3"
 
     """Specifies all origins allowed for cross-domain requests (CORS)."""
-    allowed_origins: list[str] = field(default_factory=lambda: [
-        "http://localhost:3180",
-        "http://127.0.0.1:3180",
-        "https://localhost:3180"
-    ])
+    allowed_origins: list[str] = field(
+        default_factory=lambda: [
+            "http://localhost:3180",
+            "http://127.0.0.1:3180",
+            "https://localhost:3180",
+        ]
+    )
 
     """The user group required for updating or deleting data via the API."""
     admin_group: str = "admin"
@@ -67,25 +69,17 @@ class Settings:
     unsafe_disable_auth: bool = False
 
     """
-    The endpoint used to obtain public keys (JWK) for validating 
-    user tokens. 
-    Must point to jwks_uri field from the Configuration Request.
+    The endpoint used to retrieve OpenID Connect configuration
+    from the identity provider.
     https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
     """
-    jwks_uri: str | None = None
+    metadata_uri: str | None = None
 
     """The algorithm used by the IdP to generate ID tokens."""
     jwks_alg: str = "ES256"
 
     """Number of seconds to cache public keys (JWK) retrieved from jwks_uri."""
     jwks_ttl: int = 60 * 15
-
-    """
-    The endpoint used to obtain additional user info from the IdP.
-    Must point to userinfo_endpoint field from the Configuration Request.
-    https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
-    """
-    userinfo_endpoint: str | None = None
 
     """Number of seconds to cache user info retrieved from userinfo_endpoint."""
     userinfo_ttl: int = 60 * 15
@@ -115,6 +109,9 @@ class Settings:
 
     """Number of seconds to wait before settings are read again from disk."""
     watch_interval: int = 15
+
+    """Maximum size of incomplete HTTP events (headers) in bytes for h11. Default is 16KB."""
+    h11_max_incomplete_event_size: int = 16 * 1024
 
     __listening_task: asyncio.Task | None = None
 
@@ -158,24 +155,42 @@ class Settings:
             self.__listening_task.cancel()
 
     def validate(self):
+        if not self.unsafe_disable_auth and not self.metadata_uri:
+            raise ValueError("You must specify a metadata URI.")
+
         if self.session_ttl > MAX_SESSION_TTL:
-            logger.warning(dedent(
-                "Session TTL exceeds maximum allowed value, "
-                "using the default timeout (8 hours)."
-            ))
+            logger.warning(
+                dedent(
+                    "Session TTL exceeds maximum allowed value, "
+                    "using the default timeout (8 hours)."
+                )
+            )
             self.session_ttl = MAX_SESSION_TTL
+
+    def tortoise_orm(self):
+        return {
+            "connections": {
+                "default": self.database_url,
+            },
+            "apps": {
+                "models": {
+                    "models": ["app.models", "aerich.models"],
+                    "default_connection": "default",
+                }
+            }
+        }
 
 
 if "pytest" in sys.modules:
     settings = Settings(
-        client_id="test-client-id",
-        nvcf_api_key="test-nvcf-api-key"
+        client_id="test-client-id", nvcf_api_key="test-nvcf-api-key"
     )
 else:
     settings = Settings.read()
     if settings.unsafe_disable_auth:
-        logger.warning(dedent(
-            f"""
+        logger.warning(
+            dedent(
+                f"""
             -----------------------------------------------
             !!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!
             -----------------------------------------------
@@ -183,4 +198,8 @@ else:
             USE THIS OPTION ONLY FOR TESTING.
             -----------------------------------------------
             """
-        ))
+            )
+        )
+
+
+TORTOISE_ORM = settings.tortoise_orm()

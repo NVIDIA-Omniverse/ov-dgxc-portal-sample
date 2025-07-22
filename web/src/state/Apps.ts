@@ -1,11 +1,13 @@
 import semver from "semver";
 import { Config } from "../providers/ConfigProvider.tsx";
+import { HttpError } from "../util/Errors";
 
 /**
  * Represents an application available for streaming.
  * One application may have multiple versions with different metadata.
  */
 export interface StreamingApp {
+  id: string;
   title: string;
   productArea: string;
   category: string;
@@ -13,6 +15,16 @@ export interface StreamingApp {
   latestVersion: StreamingAppVersion;
 
   authType?: AuthenticationType;
+
+  /**
+   * Specifies a hostname for the private endpoint for streaming.
+   */
+  mediaServer?: string;
+
+  /**
+   * Specifies a port for the private endpoint for streaming.
+   */
+  mediaPort?: number;
 
   /**
    * A list of application versions and their information.
@@ -68,7 +80,7 @@ export enum AuthenticationType {
   none = "NONE",
 
   /**
-   * The application requires passing the ID token received from the IdP.
+   * The application requires passing the access token received from the IdP.
    */
   openid = "OPENID",
 
@@ -143,6 +155,14 @@ interface StreamingAppResponseItem {
    * Authentication type required by this application.
    */
   authentication_type: AuthenticationType;
+  /**
+   * Specifies a hostname for the private endpoint for streaming.
+   */
+  media_server?: string;
+  /**
+   * Specifies a port for the private endpoint for streaming.
+   */
+  media_port?: number;
 }
 
 export interface GetStreamingAppsParams {
@@ -181,12 +201,15 @@ export async function getStreamingApps({
         functionVersionId: item.function_version_id,
       };
       const app: StreamingApp = category.get(item.title) ?? {
+        id: item.id,
         title: item.title,
         productArea: item.product_area,
         icon: item.icon,
         category: item.category,
         latestVersion: version,
         versions: [],
+        mediaServer: item.media_server,
+        mediaPort: item.media_port,
       };
       if (semver.compare(item.version, app.latestVersion.name) === 1) {
         app.latestVersion = version;
@@ -205,8 +228,9 @@ export async function getStreamingApps({
 
     return categories;
   } else {
-    throw new Error(
+    throw new HttpError(
       `Failed to load streaming applications -- HTTP${response.status}.\n${response.statusText}`,
+      response.status
     );
   }
 }
@@ -233,6 +257,7 @@ export async function getStreamingApp({
     const body = (await response.json()) as StreamingAppResponseItem;
     if (body) {
       return {
+        id: body.id,
         title: body.title,
         productArea: body.product_area,
         category: body.category,
@@ -245,6 +270,8 @@ export async function getStreamingApp({
         },
         authType: body.authentication_type,
         versions: [],
+        mediaServer: body.media_server,
+        mediaPort: body.media_port,
       };
     } else {
       return null;
@@ -255,7 +282,8 @@ export async function getStreamingApp({
     return null;
   }
 
-  throw new Error(
+  throw new HttpError(
     `Failed to load the streaming application -- HTTP${response.status}.\n${response.statusText}`,
+    response.status
   );
 }

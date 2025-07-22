@@ -15,10 +15,11 @@ import {
   IconLogout,
 } from "@tabler/icons-react";
 import { useAuth } from "react-oidc-context";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import Logo from "../static/logo.png";
 
 export default function Header() {
+  const location = useLocation();
   const auth = useAuth();
   const nucleus = useNucleusSession();
 
@@ -64,10 +65,11 @@ export default function Header() {
           <Menu.Dropdown>
             <Menu.Label>{auth.user?.profile.email}</Menu.Label>
             <Menu.Item
+              disabled={location.pathname === "/sessions"}
               component={NavLink}
               leftSection={<IconDeviceDesktop />}
-              to={"/sessions"}
-              target={"_blank"}
+              to={location.pathname === "/sessions" ? "" : "/sessions"}
+              target={location.pathname === "/sessions" ? "" : "_blank"}
             >
               Sessions
             </Menu.Item>

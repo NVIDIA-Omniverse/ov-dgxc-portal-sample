@@ -47,6 +47,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       userManager: new UserManager({
         authority: config.auth.authority,
         client_id: config.auth.clientId,
+        metadataUrl: config.auth.metadataUri,
         redirect_uri: config.auth.redirectUri,
         scope: config.auth.scope ?? "openid profile email",
 

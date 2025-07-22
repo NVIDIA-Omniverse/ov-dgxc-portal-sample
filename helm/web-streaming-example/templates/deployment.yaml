@@ -34,6 +34,37 @@ spec:
       serviceAccountName: {{ include "web-streaming-example.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: aerich-migrations
+          securityContext:
+            {{- toYaml .Values.securityContext.backend | nindent 12 }}
+          image: "{{ .Values.images.backend.repository }}:{{ .Values.images.backend.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.images.backend.pullPolicy }}
+          command: ["poetry", "run", "migrations"]
+          args: []
+          env:
+            - name: SETTINGS_PATH
+              value: "/app/config/settings.toml"
+            {{- if .Values.apiKeys.enabled }}
+            - name: API_KEYS_PATH
+              value: "/app/secrets/api-keys.toml"
+            {{- end }}
+            {{- range $key, $value := .Values.config.extraVars }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: "/app/db/"
+              name: backend-db
+            - mountPath: "/app/config/"
+              name: backend-config
+            {{- if .Values.apiKeys.enabled }}
+            - mountPath: "/app/secrets/"
+              name: api-keys-secret
+              readOnly: true
+            {{- end }}
       containers:
         - name: web
           securityContext:
@@ -64,6 +95,10 @@ spec:
             {{- if .Values.apiKeys.enabled }}
             - name: API_KEYS_PATH
               value: "/app/secrets/api-keys.toml"
+            {{- end }}
+            {{- range $key, $value := .Values.config.extraVars }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
             {{- end }}
           ports:
             - name: backend

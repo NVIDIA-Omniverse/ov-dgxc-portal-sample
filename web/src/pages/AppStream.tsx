@@ -1,21 +1,8 @@
-import {
-  ActionIcon,
-  Box,
-  Button,
-  Flex,
-  Group,
-  Loader,
-  Stack,
-} from "@mantine/core";
+import { ActionIcon, Box, Button, Flex, Group, Loader, Stack } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
-import {
-  IconAlertTriangle,
-  IconMaximize,
-  IconMinimize,
-  IconX,
-} from "@tabler/icons-react";
+import { IconAlertTriangle, IconMaximize, IconMinimize, IconX } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "react-oidc-context";
@@ -27,7 +14,7 @@ import { useConfig } from "../hooks/useConfig";
 import useStream from "../hooks/useStream";
 import useStreamEndNotification from "../hooks/useStreamEndNotification";
 import useStreamStart from "../hooks/useStreamStart";
-import { AuthenticationType, getStreamingApp } from "../state/Apps";
+import { AuthenticationType, getStreamingApp, StreamingApp } from "../state/Apps";
 
 /**
  * Loads the information about the application with the specified ID
@@ -44,7 +31,7 @@ export default function AppStream() {
   const config = useConfig();
   const nucleus = useNucleusSession();
 
-  const { isLoading, data, error } = useQuery({
+  const { isLoading, data, isError, error } = useQuery({
     queryKey: ["streaming-app", appId],
     queryFn: async () =>
       await getStreamingApp({
@@ -65,7 +52,7 @@ export default function AppStream() {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <Stack gap={0} style={{ height: "100vh" }}>
         <Header />
@@ -76,35 +63,45 @@ export default function AppStream() {
     );
   }
 
-  if (data?.authType === AuthenticationType.nucleus) {
-    if (!nucleus.established) {
-      return (
-        <Navigate
-          to={`/nucleus/authenticate?redirectAfter=/app/${appId}/sessions/${sessionId}`}
-        />
-      );
-    } else if (!nucleus.accessToken) {
-      return (
-        <Stack gap={0} style={{ height: "100vh" }}>
-          <Header />
-          <Loader m={"sm"} />
-        </Stack>
-      );
+  if (data) {
+    if (data.authType === AuthenticationType.nucleus) {
+      if (!nucleus.established) {
+        return (
+          <Navigate
+            to={`/nucleus/authenticate?redirectAfter=/app/${appId}/sessions/${sessionId}`}
+          />
+        );
+      } else if (!nucleus.accessToken) {
+        return (
+          <Stack gap={0} style={{ height: "100vh" }}>
+            <Header />
+            <Loader m={"sm"} />
+          </Stack>
+        );
+      }
     }
+    return <AppStreamSession app={data} sessionId={sessionId} />;
   }
 
-  return <AppStreamSession appId={appId} sessionId={sessionId} />;
+  return (
+    <Stack gap={0} style={{ height: "100vh" }}>
+      <Header />
+      <LoaderError title={"Failed to load the stream"}>
+        Application not found.
+      </LoaderError>
+    </Stack>
+  )
 }
 
 interface StreamSessionProps {
-  appId: string;
+  app: StreamingApp;
   sessionId: string;
 }
 
-function AppStreamSession({ appId, sessionId }: StreamSessionProps) {
+function AppStreamSession({ app, sessionId }: StreamSessionProps) {
   const navigate = useNavigate();
-  const stream = useStream({ appId, sessionId });
-  const streamStart = useStreamStart(appId);
+  const stream = useStream({ app, sessionId });
+  const streamStart = useStreamStart(app.id);
   useStreamEndNotification(sessionId);
 
   const [fullScreen, setFullScreen] = useState(false);

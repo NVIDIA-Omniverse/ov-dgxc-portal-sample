@@ -10,6 +10,7 @@ data:
       "auth": {
         "clientId": "{{ .Values.config.auth.clientId }}",
         "authority": "{{ .Values.config.auth.authority }}",
+        "metadataUri": "{{ .Values.config.auth.metadataUri }}",
         "redirectUri": "{{ .Values.config.auth.redirectUri }}",
         "scope": "{{ .Values.config.auth.scope }}"
       },
@@ -57,10 +58,9 @@ data:
     admin_group = "{{ .Values.config.auth.adminGroup }}"
     client_id = "{{ .Values.config.auth.clientId }}"
     groups_claim = "{{ .Values.config.auth.groupsClaim }}"
-    jwks_uri = "{{ .Values.config.auth.jwks }}"
     jwks_alg = "{{ .Values.config.auth.jwksAlg }}"
     jwks_ttl = {{ .Values.config.auth.jwksTtl }}
-    userinfo_endpoint = "{{ .Values.config.auth.userinfo }}"
+    metadata_uri = "{{ .Values.config.auth.metadataUri }}"
     userinfo_ttl = {{ .Values.config.auth.userinfoTtl }}
 
     nvcf_api_key = "{{ .Values.nvcf.key }}"
@@ -72,3 +72,5 @@ data:
     session_watch_interval = {{ .Values.config.sessionWatchInterval }}
     session_idle_timeout = {{ .Values.config.sessionIdleTimeout }}
     max_app_instances_count = {{ .Values.config.maxAppInstancesCount }}
+
+    h11_max_incomplete_event_size = {{ .Values.config.h11MaxIncompleteEventSize }}

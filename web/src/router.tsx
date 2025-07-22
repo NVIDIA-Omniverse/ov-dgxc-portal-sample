@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 import AppInfo from "./pages/AppInfo";
+import Login from "./pages/Login";
 import UserSessionList from "./pages/UserSessionList.tsx";
 import Main from "./pages/Main.tsx";
 import Home from "./pages/Home.tsx";
@@ -46,6 +47,10 @@ export const router = createBrowserRouter([
         path: "sessions",
         element: <UserSessionList />,
       },
+      {
+        path: "login",
+        element: <Login />
+      }
     ],
   },
 ]);

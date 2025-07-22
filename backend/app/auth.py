@@ -15,7 +15,33 @@ from app.settings import settings
 
 logger = logging.getLogger("uvicorn.error")
 
-jwk_client = PyJWKClient(uri=settings.jwks_uri, lifespan=settings.jwks_ttl)
+
+class OpenIdConfig(TypedDict):
+    jwks_uri: str
+    token_endpoint: str
+    userinfo_endpoint: str
+
+
+_oidc_config: OpenIdConfig | None = None
+_jwk_client: PyJWKClient | None = None
+
+
+def get_openid_configuration() -> OpenIdConfig:
+    global _oidc_config
+    if _oidc_config is None:
+        _oidc_config = httpx.get(settings.metadata_uri).json()
+    return OpenIdConfig(**_oidc_config)
+
+
+def get_jwk_client() -> PyJWKClient:
+    global _jwk_client
+    if _jwk_client is None:
+        oidc_config = get_openid_configuration()
+        _jwk_client = PyJWKClient(
+            uri=oidc_config["jwks_uri"],
+            lifespan=settings.jwks_ttl
+        )
+    return _jwk_client
 
 
 class IdTokenPayload(TypedDict):
@@ -143,6 +169,7 @@ def authenticated_only(
 
 
 def decode_token(id_token: str, access_token: str | None = None) -> User:
+    jwk_client = get_jwk_client()
     try:
         if not jwk_client:
             raise HTTPException(
@@ -193,27 +220,25 @@ async def get_groups(access_token: str) -> list[str]:
     """
     Gets user groups from the IdP using the specified ID token.
     """
-    if not settings.userinfo_endpoint:
+
+    oidc_config = get_openid_configuration()
+    if not oidc_config.get("userinfo_endpoint"):
         return []
 
     async with httpx.AsyncClient() as client:
-        print(settings.userinfo_endpoint)
         response = await client.get(
-            settings.userinfo_endpoint,
+            oidc_config["userinfo_endpoint"],
             headers={"Authorization": f"Bearer {access_token}"},
         )
-        print(response, access_token, response.text)
         if response.is_success:
             data = response.json()
             return data.get("groups", [])
         text = response.text
         www_authenticate = response.headers.get("www-authenticate")
         logger.warning(
-            dedent(
-                f"""
-            Failed to retrieve user groups from IdP: {text}
-            {www_authenticate}
-        """
-            )
+            dedent(f"""
+                Failed to retrieve user groups from IdP: {text}
+                {www_authenticate}
+            """)
         )
         return []

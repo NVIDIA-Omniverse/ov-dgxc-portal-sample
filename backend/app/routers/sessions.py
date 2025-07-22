@@ -26,6 +26,7 @@ from app.models import (
     SessionModel, SessionStatus, SessionResponse, Page, PublishedAppModel,
     AuthenticationType
 )
+from app.observability import metrics
 from app.settings import settings
 
 router = APIRouter()
@@ -43,7 +44,8 @@ async def watch_session_timeout():
             status__not=str(SessionStatus.stopped.value),
             start_date__lte=datetime.datetime.now() - datetime.timedelta(
                 seconds=settings.session_ttl),
-        )
+        ).prefetch_related("app")
+
         logger.debug(f"Found {len(sessions)} timed-outed sessions.")
 
         for session in sessions:
@@ -55,14 +57,22 @@ async def watch_idle_sessions():
     while True:
         logger.debug("Check idle sessions...")
 
-        sessions = await SessionModel.filter(
+        disconnected_sessions = await SessionModel.filter(
             status=SessionStatus.idle.value,
             end_date__lte=datetime.datetime.now() - datetime.timedelta(
                 seconds=settings.session_idle_timeout
             )
         )
-        logger.debug(f"Found {len(sessions)} idle sessions.")
+        orphaned_sessions = await SessionModel.filter(
+            status=SessionStatus.idle.value,
+            start_date__lte=datetime.datetime.now() - datetime.timedelta(
+                seconds=settings.session_idle_timeout
+            ),
+            end_date=None
+        )
+        sessions = disconnected_sessions + orphaned_sessions
 
+        logger.debug(f"Found {len(sessions)} idle sessions.")
         for session in sessions:
             logger.debug(f"[{session.id}] Stop as idle.")
             session.status = SessionStatus.stopped
@@ -216,6 +226,15 @@ async def start_stream(
 
                 response = Response(content=session.model_dump_json())
                 if response.status_code == status.HTTP_200_OK:
+                    metrics.session_start.add(1, {
+                        "session.id": session_model.id,
+                        "session.app": session_model.app_id,
+                        "session.user": user.sub,
+                        "session.username": user.username,
+                        "nvcf.function_id": str(app.function_id),
+                        "nvcf.function_version_id": str(app.function_version_id),
+                    })
+
                     api_cookies = http.cookies.SimpleCookie()
                     api_cookies["nvcf-request-id"] = nvcf_request_id.value
                     api_cookies["nvcf-request-id"]["max-age"] = settings.session_ttl
@@ -302,6 +321,20 @@ async def end_session(session: SessionModel, reason: str) -> Response:
             session.status = SessionStatus.stopped
             session.end_date = datetime.datetime.now(tz=datetime.timezone.utc)
             await session.save()
+
+
+            duration = session.end_date - session.start_date
+            metric_attrs = {
+                "session.id": session.id,
+                "session.app": session.app_id,
+                "session.user": session.user_id,
+                "session.username": session.user_name,
+                "session.duration.seconds": duration.seconds,
+                "nvcf.function_id": str(session.function_id),
+                "nvcf.function_version_id": str(session.function_version_id),
+            }
+            metrics.session_end.add(1, metric_attrs)
+            metrics.session_duration.record(duration.seconds, metric_attrs)
 
         if response.status_code == status.HTTP_404_NOT_FOUND:
             # The session with the specified nvcf_request_id does not exist,
@@ -460,6 +493,14 @@ async def connect_to_stream(
             session.status = SessionStatus.active
             await session.save()
 
+            metrics.active_sessions.add(1, {
+                "session.app": session.app_id,
+                "session.user": user.sub,
+                "session.username": user.username,
+                "nvcf.function_id": str(app.function_id),
+                "nvcf.function_version_id": str(app.function_version_id),
+            })
+
             async def consumer():
                 """
                 Consumes messages from the client and sends them to NVCF.
@@ -517,6 +558,15 @@ async def connect_to_stream(
     finally:
         reason_msg = f" ({reason})" if reason else ""
         logger.info(f"[{session.id}] Closed with code {code}{reason_msg}.")
+
+        if session.status == SessionStatus.active:
+            metrics.active_sessions.add(-1, {
+                "session.app": session.app_id,
+                "session.user": user.sub,
+                "session.username": user.username,
+                "nvcf.function_id": str(app.function_id),
+                "nvcf.function_version_id": str(app.function_version_id),
+            })
 
         if not (3000 <= code < 4000):
             # Update the session status and duration, if websocket was not closed by the API.
@@ -641,6 +691,12 @@ async def terminate_session(
     if isinstance(session, Response):
         return session
 
+    if session.status == SessionStatus.stopped:
+        # The session is already stopped, ignore the request and clear cookies.
+        return Response(
+            status_code=status.HTTP_204_NO_CONTENT,
+            headers=set_session_expired_cookies(),
+        )
     return await end_session(session, reason="Terminated by a system administrator.")
 
 

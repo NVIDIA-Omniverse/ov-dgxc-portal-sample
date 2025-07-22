@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Config } from "../providers/ConfigProvider.tsx";
-import { fromSnakeCaseSchema } from "../util.ts";
+import { HttpError } from "../util/Errors";
+import { fromSnakeCaseSchema } from "../util/Schemas";
 import { createPaginatedSchema } from "./Pagination.ts";
 
 /**
@@ -76,8 +77,9 @@ export async function getSessions({
   }
 
   const text = await response.text();
-  throw new Error(
+  throw new HttpError(
     `Failed to load streaming sessions -- HTTP${response.status}.\n${text}`,
+    response.status,
   );
 }
 
@@ -86,7 +88,10 @@ export interface GetSessionParams {
   sessionId: string;
 }
 
-export async function getSession({ config, sessionId }: GetSessionParams): Promise<StreamingSession> {
+export async function getSession({
+  config,
+  sessionId,
+}: GetSessionParams): Promise<StreamingSession> {
   const response = await fetch(
     `${config.endpoints.backend}/sessions/${sessionId}`,
   );
@@ -96,8 +101,9 @@ export async function getSession({ config, sessionId }: GetSessionParams): Promi
   }
 
   const text = await response.text();
-  throw new Error(
+  throw new HttpError(
     `Failed to load the session -- HTTP${response.status}.\n${text}`,
+    response.status,
   );
 }
 
@@ -117,7 +123,7 @@ export async function startSession({
     `${config.endpoints.backend}/sessions/?${params.toString()}`,
     {
       method: "POST",
-    }
+    },
   );
   if (response.ok) {
     const body: unknown = await response.json();
@@ -125,8 +131,9 @@ export async function startSession({
   }
 
   const text = await response.text();
-  throw new Error(
+  throw new HttpError(
     `Failed to start the session -- HTTP${response.status}.\n${text}`,
+    response.status,
   );
 }
 
@@ -154,8 +161,9 @@ export async function terminateSession({
   );
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(
+    throw new HttpError(
       `Failed to terminate the session -- HTTP${response.status}.\n${text}`,
+      response.status,
     );
   }
 }

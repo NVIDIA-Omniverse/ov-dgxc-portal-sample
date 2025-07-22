@@ -39,8 +39,9 @@ config:
     # The identity provider URL (where users will be redirected for authentication)
     authority: ""
 
-    # The identity provider URL for obtaining public keys
-    jwks: ""
+    # The endpoint used to retrieve OpenID Connect configuration from the identity provider.
+    # https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
+    metadataUri: ""
 
     # The algorithm used by the IdP to generate ID tokens
     jwksAlg: "ES256"
@@ -49,9 +50,6 @@ config:
     # Usually this default value doesn't need to be changed.
     # Check your IDP docs though regarding the recommended time the client should cache the public keys (JWK) for.
     jwksTtl: 300
-
-    # The identity provider URL for obtaining detailed user information
-    userinfo: ""
 
     # Number of seconds to cache user info retrieved from userinfo_endpoint.
     # Usually this default value doesn't need to be changed.
@@ -95,6 +93,21 @@ config:
 
   # Defines Content-Security-Policy for the web frontend
   csp: ""
+
+  # Extra environment variables to be passed to the backend container
+  # Useful for OpenTelemetry configuration and other custom environment variables
+  extraVars: {}
+    # Example OpenTelemetry environment variables:
+    # OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+    # OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+    # OTEL_RESOURCE_ATTRIBUTES: "service.name=web-streaming-example,service.version=1.0.0"
+    # OTEL_TRACES_EXPORTER: "otlp"
+    # OTEL_METRICS_EXPORTER: "otlp"
+    # OTEL_LOGS_EXPORTER: "otlp"
+
+  # Maximum size of incomplete HTTP events (headers) in bytes for HTTP1.1. Default is 16KB.
+  # Increase this value if you have headers that exceed the default limit.
+  h11MaxIncompleteEventSize: 16384
 
 apiKeys:
   # Whether to enable API key authentication
@@ -145,7 +158,12 @@ service:
 ingress:
   enabled: true
   className: ""
-  annotations: {}
+  annotations:
+    # Handle large headers/cookies at ingress level
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+    nginx.ingress.kubernetes.io/client-header-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/large-client-header-buffers: "8 128k"
   hosts:
     - host: ovc-sample
   tls:
