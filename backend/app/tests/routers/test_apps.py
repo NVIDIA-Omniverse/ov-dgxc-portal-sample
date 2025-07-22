@@ -1,9 +1,12 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from asgi_lifespan import LifespanManager
 from fastapi.encoders import jsonable_encoder
 from freezegun import freeze_time
+from httpx import ASGITransport, AsyncClient
 
+from app.main import api
 from app.models import PublishedApp, PublishedAppModel, NvcfFunctionStatus
 
 
@@ -15,7 +18,7 @@ def mock_get_nvcf_functions(mocker):
             "id": published_app["function_id"],
             "versionId": published_app["function_version_id"],
             "name": published_app["slug"],
-            "status": NvcfFunctionStatus.active
+            "status": NvcfFunctionStatus.active,
         }
     }
     yield mock
@@ -40,7 +43,7 @@ published_app_response = {
     **published_app,
     "id": "python:3.12",
     "published_at": "2024-06-17T17:00:00Z",
-    "status": "ACTIVE"
+    "status": "ACTIVE",
 }
 
 
@@ -183,8 +186,7 @@ async def test_get_active_apps(client):
     await PublishedAppModel.create(**published_app, id="python:3.12")
 
     response = await client.get(
-        "/apps/",
-        params={"status": NvcfFunctionStatus.active.value}
+        "/apps/", params={"status": NvcfFunctionStatus.active.value}
     )
     assert response.status_code == 200
     assert response.json() == [published_app_response]
@@ -193,15 +195,16 @@ async def test_get_active_apps(client):
 @freeze_time("2024-06-17 17:00:00")
 async def test_get_apps_filter_by_function_id(client):
     await PublishedAppModel.create(**published_app, id="python:3.12")
-    await PublishedAppModel.create(**{
-        **published_app,
-        "id": "python:3.11",
-        "function_id": "2525142a-9caa-4536-9541-101bf8ae51ee"
-    })
+    await PublishedAppModel.create(
+        **{
+            **published_app,
+            "id": "python:3.11",
+            "function_id": "2525142a-9caa-4536-9541-101bf8ae51ee",
+        }
+    )
 
     response = await client.get(
-        "/apps/",
-        params={"function_id": published_app["function_id"]}
+        "/apps/", params={"function_id": published_app["function_id"]}
     )
     assert response.status_code == 200
     assert response.json() == [published_app_response]
@@ -210,15 +213,17 @@ async def test_get_apps_filter_by_function_id(client):
 @freeze_time("2024-06-17 17:00:00")
 async def test_get_apps_filter_by_function_version_id(client):
     await PublishedAppModel.create(**published_app, id="python:3.12")
-    await PublishedAppModel.create(**{
-        **published_app,
-        "id": "python:3.11",
-        "function_version_id": "ef6c921d-e210-4474-9984-27b69b3092d2"
-    })
+    await PublishedAppModel.create(
+        **{
+            **published_app,
+            "id": "python:3.11",
+            "function_version_id": "ef6c921d-e210-4474-9984-27b69b3092d2",
+        }
+    )
 
     response = await client.get(
         "/apps/",
-        params={"function_version_id": published_app["function_version_id"]}
+        params={"function_version_id": published_app["function_version_id"]},
     )
     assert response.status_code == 200
     assert response.json() == [published_app_response]
@@ -263,3 +268,29 @@ async def test_delete_app_is_denied_for_non_admin_user(client, user_token):
         "/apps/python:3.12",
     )
     assert response.status_code == 403
+
+
+@freeze_time("2024-06-17 17:00:00")
+async def test_create_app_with_api_key(database):
+    async with LifespanManager(api):
+        transport = ASGITransport(api)
+        async with AsyncClient(
+            base_url="http://test",
+            headers={"Authorization": "Bearer test-value"},
+            follow_redirects=True,
+            transport=transport,
+        ) as client:
+            response = await client.put(
+                "/apps/python:3.12",
+                json=published_app,
+                headers={"Authorization": "Bearer test-value"},
+            )
+
+            assert response.status_code == 201
+            assert (created_data := response.json()) == published_app_response
+
+            response = await client.get(
+                "/apps/python:3.12",
+            )
+            assert response.status_code == 200
+            assert response.json() == created_data

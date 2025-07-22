@@ -140,6 +140,10 @@ class SessionStatus(str, Enum):
     # The session does not have any active users but still running.
     idle = "IDLE"
 
+    # The session is not stopped and is currently either CONNECTING, ACTIVE or IDLE.
+    # Only used for filtering.
+    alive = "ALIVE"
+
     # The session has been stopped by the user or system administrator.
     stopped = "STOPPED"
 
@@ -148,7 +152,7 @@ class SessionModel(Model):
     id = fields.CharField(primary_key=True, max_length=200)
     function_id = fields.UUIDField()
     function_version_id = fields.UUIDField()
-    nvcf_request_id = fields.UUIDField(null=True)
+    nvcf_request_id = fields.CharField(max_length=36, null=True)
     app: fields.ForeignKeyNullableRelation[PublishedAppModel] = (
         fields.ForeignKeyField(
             model_name="models.PublishedAppModel",
@@ -157,6 +161,8 @@ class SessionModel(Model):
             on_delete=OnDelete.SET_NULL
         )
     )
+    app_id: Optional[str]
+
     user_id = fields.CharField(max_length=200)
     user_name = fields.CharField(max_length=200)
     status = fields.CharField(max_length=50, db_index=True)

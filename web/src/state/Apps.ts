@@ -212,48 +212,49 @@ export async function getStreamingApps({
 }
 
 export interface GetStreamingAppParams {
-  functionId: string;
-  functionVersionId: string;
+  appId: string;
   config: Config;
 }
 
 /**
- * Returns an application with the specified function ID and function version ID.
+ * Returns an application with the specified ID.
  * If such application does not exist, returns null.
- * @param functionId
- * @param functionVersionId
+ * @param appId
  * @param config
  */
 export async function getStreamingApp({
-  functionId,
-  functionVersionId,
+  appId,
   config,
 }: GetStreamingAppParams): Promise<StreamingApp | null> {
   const response = await fetch(
-    `${config.endpoints.backend}/apps/?function_id=${functionId}&function_version_id=${functionVersionId}`,
+    `${config.endpoints.backend}/apps/${appId}`,
   );
   if (response.ok) {
-    const body = (await response.json()) as StreamingAppResponseItem[];
-    const item = body[0];
-    if (item) {
+    const body = (await response.json()) as StreamingAppResponseItem;
+    if (body) {
       return {
-        title: item.title,
-        productArea: item.product_area,
-        category: item.category,
-        icon: item.icon,
+        title: body.title,
+        productArea: body.product_area,
+        category: body.category,
+        icon: body.icon,
         latestVersion: {
-          id: item.id,
-          name: item.version,
-          functionId: item.function_id,
-          functionVersionId: item.function_version_id,
+          id: body.id,
+          name: body.version,
+          functionId: body.function_id,
+          functionVersionId: body.function_version_id,
         },
-        authType: item.authentication_type,
+        authType: body.authentication_type,
         versions: [],
       };
     } else {
       return null;
     }
   }
+
+  if (response.status === 404) {
+    return null;
+  }
+
   throw new Error(
     `Failed to load the streaming application -- HTTP${response.status}.\n${response.statusText}`,
   );

@@ -49,8 +49,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <MantineProvider theme={theme} forceColorScheme={"dark"}>
         <ConfigProvider>
           <RouterProvider router={router} />
-          <Notifications />
         </ConfigProvider>
+        <Notifications />
       </MantineProvider>
     </QueryClientProvider>
   </React.StrictMode>,

@@ -1,4 +1,4 @@
-# Omniverse Cloud Portal Sample (Customer Backend)
+# Omniverse on DGX Cloud Portal Sample (Customer Backend)
 
 This folder contains an example for the backend service which provides a REST API for 
 specifying additional metadata for NVCF functions and endpoints for managing streaming sessions.
@@ -14,11 +14,11 @@ When a new NVCF function is deployed, this service can be used to attach the fol
 This information can only be published by users added to the group 
 configured in `admin_group` setting for this service:
 
-![ovc-streaming-publishing.png](/docs/images/ovc-streaming-publishing.png)
+![streaming-publishing.png](/docs/images/streaming-publishing.png)
 
 Web applications can utilize the Customer Backend to display NVCF functions as streamable applications:
 
-![ovc-streaming-list.png](/docs/images/ovc-streaming-list.png)
+![streaming-list.png](/docs/images/streaming-list.png)
 
 This service is also acts as an intermediary proxy and a message broker between the web frontend and Kit-based 
 applications deployed on NVCF. The web frontend establishes a WebSocket connection to this backend service which 
@@ -26,7 +26,7 @@ verifies that the user is authenticated and authorized to establish a stream. Th
 to the WebSocket request and forwards it to the specified NVCF function to establish a signaling channel for starting 
 a stream:
 
-![ovc-streaming-join.png](/docs/images/ovc-streaming-join.png)
+![streaming-join.png](/docs/images/streaming-join.png)
 
 ## Prerequisites
 
@@ -50,15 +50,13 @@ nvcf_api_key = "..."
 ```
 
 If you'd like to run the service with the web application running with `npm run dev` command, 
-add `unsafe_disable_auth = true` setting to `settings.toml` file:
+add `root_path` to `settings.toml` file::
 
 ```toml
-# Disables authentication for this backend.
-# Use only for development.
-unsafe_disable_auth = true
+root_path = "/api"
 ```
 
-If you need to enable authentication, the following parameters must be provided in `settings.toml` file:
+To enable authentication, the following parameters must be provided in `settings.toml` file:
 
 ```toml
 # The endpoint used to obtain public keys (JWK) for validating user tokens. 

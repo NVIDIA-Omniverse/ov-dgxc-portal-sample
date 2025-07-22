@@ -15,6 +15,9 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.apiKeys.enabled }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -58,6 +61,10 @@ spec:
           env:
             - name: SETTINGS_PATH
               value: "/app/config/settings.toml"
+            {{- if .Values.apiKeys.enabled }}
+            - name: API_KEYS_PATH
+              value: "/app/secrets/api-keys.toml"
+            {{- end }}
           ports:
             - name: backend
               containerPort: {{ .Values.service.ports.backend }}
@@ -69,6 +76,11 @@ spec:
               name: backend-db
             - mountPath: "/app/config/"
               name: backend-config
+            {{- if .Values.apiKeys.enabled }}
+            - mountPath: "/app/secrets/"
+              name: api-keys-secret
+              readOnly: true
+            {{- end }}
       volumes:
         - name: backend-db
           persistentVolumeClaim:
@@ -80,6 +92,15 @@ spec:
               - key: "settings.toml"
                 path: "settings.toml"
                 mode: 0777
+        {{- if .Values.apiKeys.enabled }}
+        - name: api-keys-secret
+          secret:
+            secretName: {{ include "web-streaming-example.fullname" . }}-api-keys
+            items:
+              - key: "api-keys.toml"
+                path: "api-keys.toml"
+                mode: 0400
+        {{- end }}
         - name: web-config
           configMap:
             name: {{ include "web-streaming-example.fullname" . }}

@@ -7,17 +7,15 @@ import httpx
 import jwt
 from asyncache import cached
 from cachetools import TTLCache
-from fastapi import HTTPException, Cookie, Depends
+from fastapi import HTTPException, Cookie, Depends, Header
 from jwt import PyJWTError, PyJWKClient
 
+from app.api_keys import api_keys, ApiKey
 from app.settings import settings
 
-logger = logging.getLogger('uvicorn.error')
+logger = logging.getLogger("uvicorn.error")
 
-jwk_client = PyJWKClient(
-    uri=settings.jwks_uri,
-    lifespan=settings.jwks_ttl
-)
+jwk_client = PyJWKClient(uri=settings.jwks_uri, lifespan=settings.jwks_ttl)
 
 
 class IdTokenPayload(TypedDict):
@@ -38,9 +36,10 @@ class IdTokenPayload(TypedDict):
 
 
 @dataclasses.dataclass
-class IdToken:
-    token: str
+class User:
+    id_token: str
     payload: IdTokenPayload
+    access_token: Optional[str] = None
 
     @property
     def sub(self) -> str:
@@ -56,10 +55,62 @@ class IdToken:
             return name
         return self.sub
 
+    @property
+    def is_api_key_user(self) -> bool:
+        return self.sub.startswith("api_key:")
+
+    async def is_admin(self) -> bool:
+        if self.is_api_key_user:
+            return True
+
+        if (
+            not (groups := self.payload.get(settings.groups_claim))
+            and self.access_token
+        ):
+            # Groups are missing in the id token.
+            # Call the IdP to retrieve groups.
+            groups = self.payload[settings.groups_claim] = await get_groups(
+                self.access_token
+            )
+
+        if not groups:
+            logger.warning(
+                "IdP did not provide any groups for the specified token."
+            )
+        return bool(groups and settings.admin_group in groups)
+
+
+def extract_bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+
+    match authorization.split(" ", 1):
+        case ["Bearer", token]:
+            return token
+        case _:
+            return None
+
+
+def create_api_key_user(api_key_obj: ApiKey) -> User:
+    """Create a User object for API key authentication."""
+    return User(
+        id_token="",
+        access_token="",
+        payload={
+            "sub": f"api_key:{api_key_obj.name}",
+            "exp": 0,
+            "email": f"{api_key_obj.name}@api.system",
+            "preferred_username": f"api_key_{api_key_obj.name}",
+            "name": f"API Key ({api_key_obj.name})",
+        },
+    )
+
 
 def authenticated_only(
-    id_token: Annotated[str | None, Cookie()] = None,
-) -> IdToken:
+    authorization: Annotated[str | None, Header(include_in_schema=False)] = None,
+    id_token: Annotated[str | None, Cookie(include_in_schema=False)] = None,
+    access_token: Annotated[str | None, Cookie(include_in_schema=False)] = None,
+) -> User:
     """
     Marks that the endpoint can only be accessed by authenticated users.
 
@@ -69,22 +120,35 @@ def authenticated_only(
     Returns an IdToken object with the token value and its payload.
     """
     if settings.unsafe_disable_auth:
-        return IdToken(token="", payload={
-            "sub": "",
-            "exp": 0,
-            "email": "",
-            "preferred_username": "",
-            "name": ""
-        })
+        return User(
+            id_token="",
+            access_token="",
+            payload={
+                "sub": "",
+                "exp": 0,
+                "email": "",
+                "preferred_username": "",
+                "name": "",
+            },
+        )
+
+    if token := extract_bearer_token(authorization):
+        if api_key := api_keys.is_valid_key(token):
+            return create_api_key_user(api_key)
 
     if not id_token:
         raise HTTPException(status_code=401)
 
-    return decode_token(id_token)
+    return decode_token(id_token, access_token)
 
 
-def decode_token(id_token: str) -> IdToken:
+def decode_token(id_token: str, access_token: str | None = None) -> User:
     try:
+        if not jwk_client:
+            raise HTTPException(
+                status_code=401, detail="JWT validation not configured"
+            )
+
         signing_key = jwk_client.get_signing_key_from_jwt(id_token)
         payload = jwt.decode(
             id_token,
@@ -92,15 +156,16 @@ def decode_token(id_token: str) -> IdToken:
             algorithms=[settings.jwks_alg],
             audience=settings.client_id,
         )
-        return IdToken(token=id_token, payload=payload)
+        return User(
+            id_token=id_token, access_token=access_token, payload=payload
+        )
     except PyJWTError as error:
         logger.error(error)
         raise HTTPException(status_code=401) from error
 
 
 async def admin_only(
-    id_token: Annotated[IdToken, Depends(authenticated_only)],
-    access_token: Annotated[str | None, Cookie()] = None
+    user: Annotated[User, Depends(authenticated_only)],
 ):
     """
     Marks that the endpoint can only be accessed by service administrators.
@@ -116,20 +181,10 @@ async def admin_only(
     if settings.unsafe_disable_auth:
         return
 
-    if not id_token:
+    if not user:
         raise HTTPException(status_code=401)
 
-    if not (groups := id_token.payload.get("groups")) and access_token:
-        # Groups are missing in the user token.
-        # Call the IdP to retrieve groups.
-        groups = await get_groups(access_token)
-
-    if not groups:
-        logger.warning(
-            "IdP did not provide any groups for the specified token."
-        )
-
-    if settings.admin_group not in groups:
+    if not await user.is_admin():
         raise HTTPException(status_code=403)
 
 
@@ -153,8 +208,12 @@ async def get_groups(access_token: str) -> list[str]:
             return data.get("groups", [])
         text = response.text
         www_authenticate = response.headers.get("www-authenticate")
-        logger.warning(dedent(f"""
+        logger.warning(
+            dedent(
+                f"""
             Failed to retrieve user groups from IdP: {text}
             {www_authenticate}
-        """))
+        """
+            )
+        )
         return []

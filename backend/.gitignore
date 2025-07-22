@@ -6,4 +6,6 @@
 requirements.txt
 db.sqlite3*
 test.sqlite3*
+
 settings.toml
+api-keys.toml

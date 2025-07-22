@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse
 from tortoise.contrib.fastapi import RegisterTortoise
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
+from app.api_keys import api_keys
 from app.routers import apps_router, sessions_router
 from app.routers.sessions import watch_session_timeout, watch_idle_sessions
 from app.settings import settings
@@ -18,6 +19,7 @@ from app.settings import settings
 @asynccontextmanager
 async def configure_api(app: FastAPI):
     settings.listen()
+    api_keys.listen()
 
     session_termination_task = None
     session_idle_termination_task = None
@@ -40,6 +42,7 @@ async def configure_api(app: FastAPI):
         if session_idle_termination_task is not None:
             session_idle_termination_task.cancel()
         settings.stop()
+        api_keys.stop()
 
 
 def watcher_task_done(task):

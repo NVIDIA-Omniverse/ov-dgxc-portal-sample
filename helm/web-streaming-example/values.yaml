@@ -45,13 +45,16 @@ config:
     # The algorithm used by the IdP to generate ID tokens
     jwksAlg: "ES256"
 
-    # Number of seconds to cache public keys (JWK) retrieved from jwks_uri
+    # Number of seconds to cache public keys (JWK) retrieved from jwks_uri.
+    # Usually this default value doesn't need to be changed.
+    # Check your IDP docs though regarding the recommended time the client should cache the public keys (JWK) for.
     jwksTtl: 300
 
     # The identity provider URL for obtaining detailed user information
     userinfo: ""
 
-    # Number of seconds to cache user info retrieved from userinfo_endpoint
+    # Number of seconds to cache user info retrieved from userinfo_endpoint.
+    # Usually this default value doesn't need to be changed.
     userinfoTtl: 300
 
     # Scopes that define information required from the identity provider
@@ -61,6 +64,9 @@ config:
     # Verified by checking the user ID token and calling /userinfo endpoint.
     adminGroup: "admin"
 
+    # Defines what field in the token should be used for checking user groups.
+    groupsClaim: "groups"
+
   endpoints:
     backend: "https://ovc-sample:3180/api"
     nucleus: ""
@@ -68,18 +74,35 @@ config:
   # Maximum session duration in seconds before users get disconnected.
   sessionTtl: 28800
 
+  # Defines when the user should see the notification about the ending session (in seconds).
+  sessionEndNotificationTime: 600
+
+  # Defines for how long the session end notification should be displayed (in seconds).
+  sessionEndNotificationDuration: 30
+
   # Defines how often (in seconds) the service checks for session aliveness (timeouts and idle state).
   sessionWatchInterval: 60
 
   # Number of seconds before idle sessions are stopped.
-  # The default value is equal to NVCF session reconnect timeout.
+  # You MUST make sure the value matches the timeout you specified during the NVCF function creation.
+  # Only one global timeout is supported on the portal side,
+  # therefore all NVCF functions should be created with the same session resume timeout matching the value below.
+  # The specified value must be less or equal 300 seconds (5 minutes) which is the maximum NVCF session reconnect timeout.
   sessionIdleTimeout: 300
 
   # Maximum amount of allowed running sessions for each user per application
-  maxAppInstancesCount: 1
+  maxAppInstancesCount: 3
 
   # Defines Content-Security-Policy for the web frontend
   csp: ""
+
+apiKeys:
+  # Whether to enable API key authentication
+  enabled: false
+  # API keys configuration
+  keys: []
+    # - name: "admin-service"
+    #   value: "api-key-admin-1234567890abcdef"
 
 imagePullSecrets: []
 nameOverride: ""

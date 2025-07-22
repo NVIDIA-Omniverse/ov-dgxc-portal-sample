@@ -8,7 +8,8 @@ import {
   Stack,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession.ts";
+import { notifications } from "@mantine/notifications";
+import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
 import {
   IconAlertTriangle,
   IconMaximize,
@@ -19,35 +20,35 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "react-oidc-context";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import Header from "../components/Header.tsx";
-import LoaderError from "../components/LoaderError.tsx";
-import SessionReportDialog from "../components/SessionReportDialog.tsx";
-import { useConfig } from "../hooks/useConfig.ts";
-import useStream from "../hooks/useStream.ts";
-import { AuthenticationType, getStreamingApp } from "../state/Apps.ts";
-import { notifications } from "@mantine/notifications";
+import Header from "../components/Header";
+import LoaderError from "../components/LoaderError";
+import SessionReportDialog from "../components/SessionReportDialog";
+import { useConfig } from "../hooks/useConfig";
+import useStream from "../hooks/useStream";
+import useStreamEndNotification from "../hooks/useStreamEndNotification";
+import useStreamStart from "../hooks/useStreamStart";
+import { AuthenticationType, getStreamingApp } from "../state/Apps";
 
 /**
- * Loads the information about the application with the specified function ID
- * and specified function version ID and starts the stream.
+ * Loads the information about the application with the specified ID
+ * and specified session and starts the stream.
  *
  * If application requires Nucleus authentication, verifies that Nucleus session is established,
  * otherwise redirects the user to the Nucleus login form.
  */
-export default function Stream() {
-  const { id = "", version = "" } = useParams<{
-    id: string;
-    version: string;
+export default function AppStream() {
+  const { appId = "", sessionId = "" } = useParams<{
+    appId: string;
+    sessionId: string;
   }>();
   const config = useConfig();
   const nucleus = useNucleusSession();
 
   const { isLoading, data, error } = useQuery({
-    queryKey: ["streaming-app", id, version],
+    queryKey: ["streaming-app", appId],
     queryFn: async () =>
       await getStreamingApp({
-        functionId: id,
-        functionVersionId: version,
+        appId,
         config,
       }),
     refetchOnMount: false,
@@ -79,7 +80,7 @@ export default function Stream() {
     if (!nucleus.established) {
       return (
         <Navigate
-          to={`/nucleus/authenticate?redirectAfter=/stream/${id}/${version}`}
+          to={`/nucleus/authenticate?redirectAfter=/app/${appId}/sessions/${sessionId}`}
         />
       );
     } else if (!nucleus.accessToken) {
@@ -92,17 +93,19 @@ export default function Stream() {
     }
   }
 
-  return <StreamSession id={id} version={version} />;
+  return <AppStreamSession appId={appId} sessionId={sessionId} />;
 }
 
 interface StreamSessionProps {
-  id: string;
-  version: string;
+  appId: string;
+  sessionId: string;
 }
 
-function StreamSession({ id, version }: StreamSessionProps) {
+function AppStreamSession({ appId, sessionId }: StreamSessionProps) {
   const navigate = useNavigate();
-  const stream = useStream({ functionId: id, functionVersionId: version });
+  const stream = useStream({ appId, sessionId });
+  const streamStart = useStreamStart(appId);
+  useStreamEndNotification(sessionId);
 
   const [fullScreen, setFullScreen] = useState(false);
   const videoElement = useRef<HTMLVideoElement>(null);
@@ -159,7 +162,8 @@ function StreamSession({ id, version }: StreamSessionProps) {
 
   async function startNewSession() {
     await stream.terminate();
-    reload();
+    await streamStart.mutateAsync();
+    window.location.reload();
   }
 
   return (
@@ -211,24 +215,6 @@ function StreamSession({ id, version }: StreamSessionProps) {
             boxSizing: "border-box",
           }}
         >
-          {stream.loading && <Loader m={"sm"} />}
-          {stream.error && (
-            <LoaderError title={"Failed to load the stream"}>
-              {stream.error.toString()}
-
-              <Group mt={"md"}>
-                <Button variant={"white"} onClick={reload}>
-                  Reload
-                </Button>
-                <Button
-                  variant={"white"}
-                  onClick={() => void startNewSession()}
-                >
-                  Start a new session
-                </Button>
-              </Group>
-            </LoaderError>
-          )}
           <video
             id={"stream-video"}
             ref={videoElement}
@@ -245,10 +231,40 @@ function StreamSession({ id, version }: StreamSessionProps) {
             }}
           />
           <audio id={"stream-audio"} muted />
+
+          {stream.loading && <Loader m={"sm"} />}
+          {stream.error && (
+            <LoaderError title={"Failed to load the stream"}>
+              {stream.error.toString()}
+
+              <Group mt={"md"}>
+                <Button
+                  variant={"white"}
+                  disabled={streamStart.isPending}
+                  loading={streamStart.isPending}
+                  onClick={reload}
+                >
+                  Reload
+                </Button>
+                <Button
+                  variant={"white"}
+                  disabled={streamStart.isPending}
+                  loading={streamStart.isPending}
+                  onClick={() => void startNewSession()}
+                >
+                  Start a new session
+                </Button>
+              </Group>
+            </LoaderError>
+          )}
         </Box>
       </Stack>
 
-      <SessionReportDialog opened={reportOpened} onClose={closeReport} />
+      <SessionReportDialog
+        sessionId={sessionId}
+        opened={reportOpened}
+        onClose={closeReport}
+      />
     </Stack>
   );
 }

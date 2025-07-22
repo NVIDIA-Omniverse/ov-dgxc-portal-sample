@@ -8,18 +8,18 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
-import Cookies from "js-cookie";
 
 export interface SessionReportDialogProps {
+  sessionId: string;
   opened: boolean;
   onClose: () => void;
 }
 
 export default function SessionReportDialog({
+  sessionId,
   opened,
   onClose,
 }: SessionReportDialogProps) {
-  const sessionId = Cookies.get("nvcf-request-id");
   return (
     <Dialog
       opened={opened}

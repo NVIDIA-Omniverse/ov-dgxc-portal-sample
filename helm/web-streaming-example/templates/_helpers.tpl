@@ -60,3 +60,15 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Generate API keys TOML configuration
+*/}}
+{{- define "web-streaming-example.apiKeysToml" -}}
+{{- range .Values.apiKeys.keys }}
+[[keys]]
+name = {{ .name | quote }}
+value = {{ .value | quote }}
+
+{{- end }}
+{{- end }}

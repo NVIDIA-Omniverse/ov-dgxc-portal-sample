@@ -1,3 +1,13 @@
+if [ -z "$CONTENT_CACHE_SERVER" ]; then
+  echo "CONTENT_CACHE_SERVER is not set, using the default value: https://lft.ucc.cluster.local:443"
+  CONTENT_CACHE_SERVER="https://lft.ucc.cluster.local:443"
+fi
+
+if [ -z "$DDCS_SERVER" ]; then
+  echo "DDCS_SERVER is not set, using the default value: ddcs.ddcs.cluster.local:3010"
+  DDCS_SERVER="ddcs.ddcs.cluster.local:3010"
+fi
+
 nvcf_creation_response=$(curl -s -v --location --request POST 'https://api.ngc.nvidia.com/v2/nvcf/functions' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer '$NVCF_TOKEN'' \
@@ -19,7 +29,8 @@ nvcf_creation_response=$(curl -s -v --location --request POST 'https://api.ngc.n
   "containerEnvironment": [
     {"key": "NVDA_KIT_NUCLEUS", "value": "'$NUCLEUS_SERVER'"},
     {"key": "OMNI_JWT_ENABLED", "value": "1"},
-    {"key": "NVDA_KIT_ARGS", "value": "--/app/livestream/nvcf/sessionResumeTimeoutSeconds=300"}
+    {"key": "NVDA_KIT_ARGS", "value": "--/UJITSO/enabled=true --/UJITSO/textures=true --/UJITSO/geometry=true --/UJITSO/materials=true --/UJITSO/datastore/GRPCDataStore/selfFile/enabled=true --/UJITSO/datastore/grpcDnsName=\"'$DDCS_SERVER'\" --/app/livestream/nvcf/sessionResumeTimeoutSeconds=300"},
+    {"key": "OMNI_CONN_CACHE", "value": "'$CONTENT_CACHE_SERVER'"}
   ]
 }
 ')

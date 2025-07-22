@@ -35,6 +35,17 @@ const Config = z.object({
     // The URI of the Nucleus server used for the portal.
     nucleus: z.string().min(1, "Required"),
   }),
+
+  sessions: z.object({
+    // Maximum session duration in seconds before users get disconnected.
+    maxTtl: z.number().default(28800),
+
+    // Defines when the user should see the notification about the ending session (in seconds).
+    sessionEndNotificationTime: z.number().default(600),
+
+    // Defines for how long the session end notification should be displayed (in seconds).
+    sessionEndNotificationDuration: z.number().default(30),
+  })
 });
 
 export type Config = z.infer<typeof Config>;

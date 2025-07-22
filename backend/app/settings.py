@@ -57,6 +57,9 @@ class Settings:
     """The user group required for updating or deleting data via the API."""
     admin_group: str = "admin"
 
+    """Defines what field in the token should be used for checking user groups."""
+    groups_claim: str = "groups"
+
     """
     Disables authentication for this backend.
     Use only for development.
@@ -91,7 +94,7 @@ class Settings:
     Maximum number of instances of the same application
     that can be launched by a user.
     """
-    max_app_instances_count: int = 1
+    max_app_instances_count: int = 3
 
     """
     Maximum session duration in seconds before users get disconnected.

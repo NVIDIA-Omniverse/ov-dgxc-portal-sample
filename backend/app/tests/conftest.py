@@ -5,7 +5,7 @@ import pytest
 from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 
-from app.auth import IdToken
+from app.auth import User
 from app.main import api
 from app.settings import settings
 
@@ -65,9 +65,9 @@ async def configure_client(token):
 
 @pytest.fixture
 def authenticated_only(mocker):
-    def decode(token: str) -> IdToken:
-        payload = jwt.decode(token, options={"verify_signature": False})
-        return IdToken(token, payload)
+    def decode(id_token: str, access_token: str = None) -> User:
+        payload = jwt.decode(id_token, options={"verify_signature": False})
+        return User(id_token, payload, access_token)
 
     mock = mocker.patch('app.auth.decode_token', side_effect=decode)
     yield mock

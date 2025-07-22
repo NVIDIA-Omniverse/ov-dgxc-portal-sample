@@ -1,6 +1,6 @@
-# # Omniverse Cloud Portal Sample (Customer Web App)
+# Omniverse on DGX Cloud Portal Sample (Customer Web App)
 
-This folder contains code for the Web Portal Sample that displays applications deployed on Omniverse Cloud and are registered in the 
+This folder contains code for the Web Portal Sample that displays applications deployed on Omniverse on DGX Cloud and are registered in the 
 backend service that can be found within the `backend` folder in this repo.
 
 ## Prerequisites
@@ -27,8 +27,11 @@ Create the `main.json` file in the `web/public/config` directory with the follow
     "scope": "openid profile email authz"
   },
   "endpoints": {
-    "backend": "http://127.0.0.1:8000",
+    "backend": "http://127.0.0.1:3180/api",
     "nucleus": "..."
+  },
+  "sessions": {
+    "maxTtl": 28800
   }
 }
 ```

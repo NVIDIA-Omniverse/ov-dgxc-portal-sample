@@ -22,7 +22,7 @@ export default function ApplicationCard({ app }: ApplicationCardProps) {
   return (
     <Card
       component={"a"}
-      href={`/stream/${version.functionId}/${version.functionVersionId}`}
+      href={`/app/${version.id}/sessions`}
       target={"_blank"}
       radius={"sm"}
       classNames={{
@@ -49,6 +49,7 @@ export default function ApplicationCard({ app }: ApplicationCardProps) {
                 whiteSpace: "nowrap",
                 width: "100%",
                 overflow: "hidden",
+                lineHeight: "30px"
               }}
               title={app.title}
             >

@@ -1,4 +1,4 @@
 .idea
 .venv
 
-helm/web-streaming-example/values.local.yaml
+helm/web-streaming-example/values.*.yaml

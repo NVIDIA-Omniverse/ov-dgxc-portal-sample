@@ -16,6 +16,11 @@ data:
       "endpoints": {
         "backend": "{{ .Values.config.endpoints.backend }}",
         "nucleus": "{{ .Values.config.endpoints.nucleus }}"
+      },
+      "sessions": {
+        "maxTtl": {{ .Values.config.sessionTtl }},
+        "sessionEndNotificationTime": {{ .Values.config.sessionEndNotificationTime }},
+        "sessionEndNotificationDuration": {{ .Values.config.sessionEndNotificationDuration }}
       }
     }
 
@@ -51,12 +56,12 @@ data:
 
     admin_group = "{{ .Values.config.auth.adminGroup }}"
     client_id = "{{ .Values.config.auth.clientId }}"
+    groups_claim = "{{ .Values.config.auth.groupsClaim }}"
     jwks_uri = "{{ .Values.config.auth.jwks }}"
     jwks_alg = "{{ .Values.config.auth.jwksAlg }}"
     jwks_ttl = {{ .Values.config.auth.jwksTtl }}
     userinfo_endpoint = "{{ .Values.config.auth.userinfo }}"
     userinfo_ttl = {{ .Values.config.auth.userinfoTtl }}
-    max_app_instances_count = {{ .Values.config.maxAppInstancesCount }}
 
     nvcf_api_key = "{{ .Values.nvcf.key }}"
     nvcf_control_endpoint = "{{ .Values.nvcf.controlEndpoint }}"
@@ -66,3 +71,4 @@ data:
     session_ttl = {{ .Values.config.sessionTtl }}
     session_watch_interval = {{ .Values.config.sessionWatchInterval }}
     session_idle_timeout = {{ .Values.config.sessionIdleTimeout }}
+    max_app_instances_count = {{ .Values.config.maxAppInstancesCount }}

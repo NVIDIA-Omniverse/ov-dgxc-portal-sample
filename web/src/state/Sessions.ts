@@ -37,6 +37,7 @@ export interface GetSessionsParams {
   config: Config;
   page?: number;
   status?: string;
+  appId?: string;
 }
 
 /**
@@ -47,11 +48,13 @@ export interface GetSessionsParams {
  * @param config The application configuration retrieved from /config.json path.
  * @param page
  * @param status
+ * @param app
  */
 export async function getSessions({
   config,
   page,
   status,
+  appId,
 }: GetSessionsParams): Promise<StreamingSessionPage> {
   const params = new URLSearchParams();
   if (page) {
@@ -59,6 +62,9 @@ export async function getSessions({
   }
   if (status) {
     params.set("status", status.toUpperCase());
+  }
+  if (appId) {
+    params.set("app_id", appId.toString());
   }
 
   const response = await fetch(
@@ -68,8 +74,59 @@ export async function getSessions({
     const body: unknown = await response.json();
     return await StreamingSessionPage.parseAsync(body);
   }
+
+  const text = await response.text();
   throw new Error(
-    `Failed to load streaming sessions -- HTTP${response.status}.\n${response.statusText}`,
+    `Failed to load streaming sessions -- HTTP${response.status}.\n${text}`,
+  );
+}
+
+export interface GetSessionParams {
+  config: Config;
+  sessionId: string;
+}
+
+export async function getSession({ config, sessionId }: GetSessionParams): Promise<StreamingSession> {
+  const response = await fetch(
+    `${config.endpoints.backend}/sessions/${sessionId}`,
+  );
+  if (response.ok) {
+    const body: unknown = await response.json();
+    return await StreamingSession.parseAsync(body);
+  }
+
+  const text = await response.text();
+  throw new Error(
+    `Failed to load the session -- HTTP${response.status}.\n${text}`,
+  );
+}
+
+export interface StartSessionParams {
+  config: Config;
+  appId: string;
+}
+
+export async function startSession({
+  config,
+  appId,
+}: StartSessionParams): Promise<StreamingSession> {
+  const params = new URLSearchParams();
+  params.set("app_id", appId.toString());
+
+  const response = await fetch(
+    `${config.endpoints.backend}/sessions/?${params.toString()}`,
+    {
+      method: "POST",
+    }
+  );
+  if (response.ok) {
+    const body: unknown = await response.json();
+    return await StreamingSession.parseAsync(body);
+  }
+
+  const text = await response.text();
+  throw new Error(
+    `Failed to start the session -- HTTP${response.status}.\n${text}`,
   );
 }
 
@@ -90,7 +147,7 @@ export async function terminateSession({
   sessionId,
 }: TerminateSessionParams): Promise<void> {
   const response = await fetch(
-    `${config.endpoints.backend}/sessions/${sessionId}/terminate`,
+    `${config.endpoints.backend}/sessions/${sessionId}`,
     {
       method: "DELETE",
     },

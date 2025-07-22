@@ -22,7 +22,8 @@ asyncache = "^0.3.1"
 pytest-mock = "^3.14.0"
 cryptography = "^43.0.0"
 starlette = "0.40.0"
-setuptools = "^75.2.0"
+setuptools = "80.8.0"
+h11 = "^0.16.0"
 
 
 [tool.poetry.group.dev.dependencies]

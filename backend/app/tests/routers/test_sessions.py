@@ -15,11 +15,13 @@ from app.models import SessionModel, SessionStatus, PublishedAppModel
 from app.routers.sessions import construct_nvcf_endpoint
 from app.settings import settings
 
-host = "127.0.0.1:12340"
-function_id = "20e5086a-832a-43a6-87c9-6784e2d1e4bd"
-function_version_id = "ba4e628b-975b-4e28-9e06-492016a94ec7"
-path = f"/sessions/{function_id}/{function_version_id}/sign_in"
-url = f"ws://{host}{path}"
+HOST = "127.0.0.1:12340"
+FUNCTION_ID = "20e5086a-832a-43a6-87c9-6784e2d1e4bd"
+FUNCTION_VERSION_ID = "ba4e628b-975b-4e28-9e06-492016a94ec7"
+SESSION_ID = "14e74c6a-38c8-427e-88de-d8847ffea5af"
+SESSION_PATH = f"/sessions/{SESSION_ID}/sign_in"
+SESSION_URL = f"ws://{HOST}{SESSION_PATH}"
+SESSION_NVCF_REQUEST_ID = "af2698db-0a8f-4701-a1a4-f14ad8b242b5"
 
 
 @pytest.fixture
@@ -80,17 +82,25 @@ def create_session():
     count = 0
 
     async def create(
-        status: SessionStatus, app: PublishedAppModel | None = None
+        session_id: str = None,
+        status: SessionStatus = SessionStatus.idle,
+        app: PublishedAppModel | None = None,
+        user_id: str = "omniverse",
+        nvcf_request_id: str = SESSION_NVCF_REQUEST_ID,
     ):
         nonlocal count
         count += 1
 
+        if session_id is None:
+            session_id = str(uuid.uuid4())
+
         return await SessionModel.create(
-            id=str(uuid.uuid4()),
-            function_id=function_id,
-            function_version_id=function_version_id,
-            user_id="omniverse",
-            user_name="omniverse",
+            id=session_id,
+            function_id=FUNCTION_ID,
+            function_version_id=FUNCTION_VERSION_ID,
+            nvcf_request_id=nvcf_request_id,
+            user_id=user_id,
+            user_name=user_id,
             status=status,
             start_date=(
                 datetime.datetime.now() + datetime.timedelta(seconds=count)
@@ -106,7 +116,10 @@ def create_session():
 
 @pytest.fixture
 def create_app():
-    async def create():
+    async def create(
+        function_id: str = FUNCTION_ID,
+        function_version_id: str = FUNCTION_VERSION_ID,
+    ):
         return await PublishedAppModel.create(
             id=str(uuid.uuid4()),
             slug="test-app",
@@ -125,60 +138,67 @@ def create_app():
 
 
 @pytest.fixture
-async def cookies(user_token, create_session):
-    session = await create_session(status=SessionStatus.idle)
-    return f"id_token={user_token}; nvcf-request-id={session.id}"
+async def cookies(user_token, create_session, create_app):
+    app = await create_app()
+    session = await create_session(
+        app=app,
+        session_id=SESSION_ID,
+        status=SessionStatus.idle
+    )
+    return f"id_token={user_token}; nvcf-request-id={session.nvcf_request_id}"
 
 
 @freeze_time("2024-09-03 23:00:00")
-async def test_session_start(nvcf_endpoint, respx_mock, user_client):
+async def test_session_start(nvcf_endpoint, respx_mock, user_client, create_app):
     nvcf_endpoint_http = construct_nvcf_endpoint()
     nvcf = respx_mock.post(nvcf_endpoint_http).respond(cookies={
         "nvcf-request-id": "test-id"
     })
 
-    response = await user_client.post(url)
+    app = await create_app()
+
+    response = await user_client.post("/sessions/", params={"app_id": str(app.id)})
     assert response.status_code == 200
 
+    session = response.json()
+    session_path = f"/sessions/{session['id']}/sign_in"
     nvcf_request_id = response.cookies.get(
         "nvcf-request-id",
-        domain="127.0.0.1",
-        path=path
-    )
-    assert nvcf_request_id == "test-id"
-
-    nvcf_request_id = response.cookies.get(
-        "nvcf-request-id",
-        domain="127.0.0.1",
-        path=f"/stream/{function_id}/{function_version_id}"
+        path=session_path
     )
     assert nvcf_request_id == "test-id"
     assert nvcf.called
 
     session = await SessionModel.get(
-        function_id=function_id,
-        function_version_id=function_version_id,
+        function_id=FUNCTION_ID,
+        function_version_id=FUNCTION_VERSION_ID,
         user_id="omniverse",
     )
     assert session.status == SessionStatus.idle
     assert str(session.start_date) == "2024-09-03 23:00:00+00:00"
 
 
-async def test_session_start_too_many_sessions(nvcf_endpoint, respx_mock, user_client):
+async def test_session_start_too_many_sessions(nvcf_endpoint, respx_mock, user_client, create_app):
     nvcf_endpoint_http = construct_nvcf_endpoint()
     nvcf = respx_mock.post(nvcf_endpoint_http).respond(cookies={
         "nvcf-request-id": "test-id"
     })
 
-    response = await user_client.post(url)
-    assert response.status_code == 200
+    app = await create_app()
 
-    response = await user_client.post(url)
+    for _ in range(0, settings.max_app_instances_count):
+        response = await user_client.post("/sessions/", params={
+            "app_id": str(app.id),
+        })
+        assert response.status_code == 200
+
+    response = await user_client.post("/sessions/", params={
+        "app_id": str(app.id),
+    })
     assert response.status_code == 429
 
-    data = response.json()
-    assert data["detail"] == "Maximum number of instances reached (1)."
-    assert nvcf.call_count == 1
+    assert response.text == f"Maximum number of instances reached ({settings.max_app_instances_count})."
+    assert nvcf.call_count == settings.max_app_instances_count
 
 
 @freeze_time("2024-09-03 23:00:00")
@@ -193,7 +213,7 @@ async def test_session_sign_in(
 
     async with nvcf_server(accept):
         async with connect(
-            url, additional_headers={"Cookie": cookies}
+            SESSION_URL, additional_headers={"Cookie": cookies}
         ) as ws:
             msg = await ws.recv()
             assert msg == "SYN"
@@ -203,16 +223,16 @@ async def test_session_sign_in(
             assert msg == "SYN ACK"
 
             session = await SessionModel.get(
-                function_id=function_id,
-                function_version_id=function_version_id,
+                function_id=FUNCTION_ID,
+                function_version_id=FUNCTION_VERSION_ID,
             )
             assert session.id is not None
             assert session.status == SessionStatus.active
 
             await ws.close()
             session = await SessionModel.get(
-                function_id=function_id,
-                function_version_id=function_version_id,
+                function_id=FUNCTION_ID,
+                function_version_id=FUNCTION_VERSION_ID,
             )
             assert session.status == SessionStatus.idle
             assert str(session.end_date) == "2024-09-03 23:00:00+00:00"
@@ -227,13 +247,13 @@ async def test_session_sign_in_server_close_abnormally(
     async with nvcf_server(accept):
         with pytest.raises(websockets.exceptions.ConnectionClosedError):
             async with connect(
-                url, additional_headers={"Cookie": cookies}
+                SESSION_URL, additional_headers={"Cookie": cookies}
             ) as ws:
                 await ws.recv()
 
         session = await SessionModel.get(
-            function_id=function_id,
-            function_version_id=function_version_id,
+            function_id=FUNCTION_ID,
+            function_version_id=FUNCTION_VERSION_ID,
         )
         assert session.status == SessionStatus.idle
 
@@ -258,7 +278,7 @@ async def test_session_sign_in_client_close_abnormally(
 
     async with nvcf_server(accept):
         async with connect(
-            url, additional_headers={"Cookie": cookies}
+            SESSION_URL, additional_headers={"Cookie": cookies}
         ) as ws:
             msg = await ws.recv()
             assert msg == "SYN"
@@ -269,8 +289,8 @@ async def test_session_sign_in_client_close_abnormally(
     await asyncio.wait_for(stopped_event.wait(), timeout=5)
 
     session = await SessionModel.get(
-        function_id=function_id,
-        function_version_id=function_version_id,
+        function_id=FUNCTION_ID,
+        function_version_id=FUNCTION_VERSION_ID,
     )
     assert session.status == SessionStatus.idle
 
@@ -289,7 +309,7 @@ async def test_session_sign_in_connected_already(
 
     async def send():
         async with connect(
-            url, additional_headers={"Cookie": cookies}
+            SESSION_URL, additional_headers={"Cookie": cookies}
         ) as ws:
             recv = await ws.recv()
             assert recv == "SYN"
@@ -308,7 +328,7 @@ async def test_session_sign_in_connected_already(
         try:
             with pytest.raises(websockets.ConnectionClosedError) as err:
                 async with connect(
-                    url, additional_headers={"Cookie": cookies}
+                    SESSION_URL, additional_headers={"Cookie": cookies}
                 ) as ws:
                     await ws.recv()
             assert err.value.rcvd.code == 3005
@@ -325,15 +345,15 @@ async def test_session_sign_in_stopped(
 
     async with nvcf_server(accept):
         session = await SessionModel.get(
-            function_id=function_id,
-            function_version_id=function_version_id,
+            function_id=FUNCTION_ID,
+            function_version_id=FUNCTION_VERSION_ID,
         )
         session.status = SessionStatus.stopped
         await session.save()
 
         with pytest.raises(websockets.exceptions.ConnectionClosedError) as err:
             async with connect(
-                url, additional_headers={"Cookie": cookies}
+                SESSION_URL, additional_headers={"Cookie": cookies}
             ) as ws:
                 await ws.recv()
 
@@ -348,15 +368,15 @@ async def test_session_sign_in_not_found(
         await websocket.close(code=1011, reason="Test error.")
 
     session = await SessionModel.get(
-        function_id=function_id,
-        function_version_id=function_version_id,
+        function_id=FUNCTION_ID,
+        function_version_id=FUNCTION_VERSION_ID,
     )
     await session.delete()
 
     async with nvcf_server(accept):
         with pytest.raises(websockets.exceptions.ConnectionClosedError) as err:
             async with connect(
-                url, additional_headers={"Cookie": cookies}
+                SESSION_URL, additional_headers={"Cookie": cookies}
             ) as ws:
                 await ws.recv()
 
@@ -373,32 +393,80 @@ async def test_session_sign_in_session_without_cookie(
     async with nvcf_server(accept):
         with pytest.raises(websockets.exceptions.ConnectionClosedError) as err:
             async with connect(
-                url, additional_headers={"Cookie": f"id_token={user_token}"}
+                SESSION_URL, additional_headers={"Cookie": f"id_token={user_token}"}
             ) as ws:
                 await ws.recv()
 
         assert err.value.rcvd.code == 3000
-        assert err.value.rcvd.reason == "Session ID is not specified (missing nvcf-request-id cookie)."
+        assert err.value.rcvd.reason == "The session has expired."
+
+
+async def test_check_session(client, create_session):
+    session = await create_session(session_id=SESSION_ID, status=SessionStatus.active)
+    response = await client.head(SESSION_PATH)
+    assert response.status_code == 200
+
+    session_path = f"/sessions/{session.id}/sign_in"
+    nvcf_request_id = response.cookies.get(
+        "nvcf-request-id",
+        path=session_path
+    )
+    assert nvcf_request_id == session.nvcf_request_id
+
+
+async def test_check_session_that_does_not_exist(client):
+    response = await client.head(SESSION_PATH)
+    assert response.status_code == 404
+
+
+async def test_check_session_that_belongs_to_another_user(client, create_session):
+    await create_session(
+        status=SessionStatus.active,
+        user_id="test-user"
+    )
+
+    response = await client.head(SESSION_PATH)
+    assert response.status_code == 404
+
+
+async def test_check_stopped_session(client, create_session):
+    session = await create_session(status=SessionStatus.stopped)
+
+    response = await client.head(SESSION_PATH)
+    assert response.status_code == 404
+
+
+async def test_check_expired_session(client, create_session):
+    session = await create_session(session_id=SESSION_ID, status=SessionStatus.idle)
+    session.end_date = datetime.datetime.now() - datetime.timedelta(seconds=settings.session_ttl + 10)
+    await session.save()
+
+    response = await client.head(SESSION_PATH)
+    assert response.status_code == 404
+
+    await session.refresh_from_db()
+    assert session.status == SessionStatus.stopped
 
 
 async def test_get_all_sessions(client, create_session, create_app):
     app = await create_app()
 
-    stopped_session = await create_session(SessionStatus.stopped)
-    active_session = await create_session(SessionStatus.active, app=app)
-    connecting_session = await create_session(SessionStatus.connecting)
+    stopped_session = await create_session(status=SessionStatus.stopped)
+    active_session = await create_session(status=SessionStatus.active, app=app)
+    other_user_session = await create_session(status=SessionStatus.active, app=app, user_id="other-user")
+    connecting_session = await create_session(status=SessionStatus.connecting)
 
     response = await client.get("/sessions")
     assert response.status_code == 200
 
     data = response.json()
     assert data["page"] == 1
-    assert data["page_size"] == 3
-    assert data["total_size"] == 3
+    assert data["page_size"] == 4
+    assert data["total_size"] == 4
     assert data["total_pages"] == 1
 
     for index, session in enumerate(
-        [connecting_session, active_session, stopped_session]
+        [connecting_session, other_user_session, active_session, stopped_session]
     ):
         session_data = data["items"][index]
         assert session_data["id"] == session.id
@@ -411,10 +479,31 @@ async def test_get_all_sessions(client, create_session, create_app):
             assert session_data["app"]["version"] == session.app.version
 
 
+async def test_get_user_sessions(user_client, create_session, create_app):
+    app = await create_app()
+
+    user_session = await create_session(status=SessionStatus.active, app=app)
+    await create_session(status=SessionStatus.active, app=app, user_id="other-user")
+
+    response = await user_client.get("/sessions")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["page"] == 1
+    assert data["page_size"] == 1
+    assert data["total_size"] == 1
+    assert data["total_pages"] == 1
+
+    session_data = data["items"][0]
+    assert session_data["id"] == user_session.id
+    assert session_data["status"] == user_session.status
+    assert session_data["user_id"] == user_session.user_id
+
+
 async def test_get_sessions_filtered_by_status(client, create_session):
-    await create_session(SessionStatus.stopped)
-    await create_session(SessionStatus.connecting)
-    active_session = await create_session(SessionStatus.active)
+    await create_session(status=SessionStatus.stopped)
+    await create_session(status=SessionStatus.connecting)
+    active_session = await create_session(status=SessionStatus.active)
 
     response = await client.get(
         "/sessions", params={"status": SessionStatus.active.value}
@@ -431,13 +520,64 @@ async def test_get_sessions_filtered_by_status(client, create_session):
     assert data["items"][0]["status"] == SessionStatus.active
 
 
+async def test_get_alive_sessions(client, create_session):
+    _stopped = await create_session(status=SessionStatus.stopped)
+    connecting = await create_session(status=SessionStatus.connecting)
+    active = await create_session(status=SessionStatus.active)
+    idle = await create_session(status=SessionStatus.idle)
+
+    response = await client.get(
+        "/sessions", params={"status": SessionStatus.alive.value}
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["page"] == 1
+    assert data["page_size"] == 3
+
+    for index, session in enumerate(
+        [idle, active, connecting]
+    ):
+        session_data = data["items"][index]
+        assert session_data["id"] == session.id
+        assert session_data["status"] == session.status
+        if session.app is None:
+            assert session_data["app"] is None
+        else:
+            assert session_data["app"]["id"] == session.app.id
+            assert session_data["app"]["title"] == session.app.title
+            assert session_data["app"]["version"] == session.app.version
+
+
+async def test_get_sessions_filtered_by_app(client, create_session, create_app):
+    app1 = await create_app()
+    app1_session = await create_session(status=SessionStatus.active, app=app1)
+
+    app2 = await create_app(function_id=str(uuid.uuid4()), function_version_id=str(uuid.uuid4()))
+    await create_session(status=SessionStatus.active, app=app2)
+
+    response = await client.get(
+        "/sessions", params={"app_id": app1.id}
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["page"] == 1
+    assert data["page_size"] == 1
+    assert data["total_size"] == 1
+    assert data["total_pages"] == 1
+
+    assert data["items"][0]["id"] == app1_session.id
+    assert data["items"][0]["status"] == app1_session.status
+
+
 async def test_get_sessions_pagination(client, create_session):
     pages = 3
     page_size = 5
 
     sessions = []
     for page_item in range(0, pages * page_size):
-        session = await create_session(SessionStatus.stopped)
+        session = await create_session(status=SessionStatus.stopped)
         sessions.append(session)
     sessions = list(reversed(sessions))
 
@@ -470,10 +610,10 @@ async def test_get_sessions_pagination_filtered_by_status(
 
     sessions = []
     for page_item in range(0, pages * page_size):
-        session = await create_session(SessionStatus.stopped)
+        session = await create_session(status=SessionStatus.stopped)
         sessions.append(session)
 
-        session = await create_session(SessionStatus.active)
+        session = await create_session(status=SessionStatus.active)
         sessions.append(session)
     sessions = list(reversed(sessions))
 
@@ -503,11 +643,12 @@ async def test_get_sessions_pagination_filtered_by_status(
 
 async def test_stop_session(
     nvcf_server, websocket_server, user_client, user_token,
-    create_session, respx_mock, cookies
+    respx_mock, cookies
 ):
     connected = asyncio.Event()
 
-    session = await create_session(SessionStatus.idle)
+    session = await SessionModel.get(id=SESSION_ID)
+    assert session.status == SessionStatus.idle
 
     async def accept(websocket: ServerConnection):
         await websocket.send("SYN")
@@ -517,8 +658,8 @@ async def test_stop_session(
         async with nvcf_server(accept):
             with pytest.raises(websockets.ConnectionClosedError) as err:
                 async with connect(
-                    url,
-                    additional_headers={"Cookie": f"id_token={user_token}; nvcf-request-id={session.id}"}
+                    SESSION_URL,
+                    additional_headers={"Cookie": f"id_token={user_token}; nvcf-request-id={SESSION_NVCF_REQUEST_ID}"}
                 ) as ws:
                     syn = await ws.recv()
                     assert syn == "SYN"
@@ -532,7 +673,7 @@ async def test_stop_session(
     await asyncio.wait_for(connected.wait(), 5)
 
     nvcf = respx_mock.delete(construct_nvcf_endpoint())
-    response = await user_client.delete(url, cookies={"nvcf-request-id": session.id})
+    response = await user_client.delete(SESSION_URL, cookies={"nvcf-request-id": SESSION_NVCF_REQUEST_ID})
     assert response.status_code == 200
     assert nvcf.called
 
@@ -543,19 +684,17 @@ async def test_stop_session(
 
 
 async def test_stop_session_not_found(user_client):
-    response = await user_client.delete(url, cookies={"nvcf-request-id": "test-id"})
+    response = await user_client.delete(SESSION_URL, cookies={"nvcf-request-id": "test-id"})
     assert response.status_code == 404
 
-    data = response.json()
-    assert data["detail"] == "Session not found."
+    assert response.text == "Session not found."
 
 
 async def test_stop_session_without_cookie(user_client):
-    response = await user_client.delete(url)
+    response = await user_client.delete(SESSION_URL)
     assert response.status_code == 400
 
-    data = response.json()
-    assert data["detail"] == "nvcf-request-id must be specified in cookies."
+    assert response.text == "Session ID is not specified."
 
 
 async def test_terminate_session(
@@ -571,7 +710,7 @@ async def test_terminate_session(
         async with nvcf_server(accept):
             with pytest.raises(websockets.ConnectionClosedError) as err:
                 async with connect(
-                    url, additional_headers={"Cookie": cookies}
+                    SESSION_URL, additional_headers={"Cookie": cookies}
                 ) as ws:
                     syn = await ws.recv()
                     assert syn == "SYN"
@@ -595,7 +734,7 @@ async def test_terminate_session(
 
     nvcf = respx_mock.delete(construct_nvcf_endpoint())
 
-    response = await client.delete(f"/sessions/{session["id"]}/terminate")
+    response = await client.delete(f"/sessions/{session["id"]}")
     assert response.status_code == 200
     assert nvcf.called
 
@@ -624,7 +763,7 @@ async def test_session_timeout(
         async with nvcf_server(accept):
             with pytest.raises(websockets.ConnectionClosedError) as err:
                 async with connect(
-                    url, additional_headers={"Cookie": cookies}
+                    SESSION_URL, additional_headers={"Cookie": cookies}
                 ) as ws:
                     while True:
                         syn = await ws.recv()
@@ -648,19 +787,19 @@ async def test_session_timeout(
 async def test_terminate_session_is_unauthorized_for_anonymous_user(client):
     del client.cookies["id_token"]
 
-    response = await client.delete("/sessions/test/terminate")
+    response = await client.delete("/sessions/test")
     assert response.status_code == 401
 
 
-async def test_terminate_session_is_denied_for_non_admin_user(
-    client, user_token
+async def test_terminate_session_returns_404_if_session_belongs_to_another_user(
+    user_client, user_token, create_session
 ):
-    client.cookies["id_token"] = user_token
+    session = await create_session(status=SessionStatus.active, user_id="other_user")
 
-    response = await client.delete("/sessions/test/terminate")
-    assert response.status_code == 403
+    response = await user_client.delete(f"/sessions/{session.id}")
+    assert response.status_code == 404
 
 
 async def test_terminate_session_not_found(client):
-    response = await client.delete("/sessions/test/terminate")
+    response = await client.delete("/sessions/test")
     assert response.status_code == 404

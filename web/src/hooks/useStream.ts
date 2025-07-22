@@ -1,19 +1,23 @@
+import { notifications } from "@mantine/notifications";
 import {
   AppStreamer,
   DirectConfig,
   eAction,
   eStatus,
+  LogFormat,
+  LogLevel,
   StreamEvent,
+  StreamType,
 } from "@nvidia/omniverse-webrtc-streaming-library";
-import Cookies from "js-cookie";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Config } from "../providers/ConfigProvider.tsx";
-import { useConfig } from "./useConfig.ts";
-import useError from "./useError.ts";
+import { Config } from "../providers/ConfigProvider";
+import { useConfig } from "./useConfig";
+import useError from "./useError";
+import useStreamStart, { streamStartNotification } from "./useStreamStart";
 
 export interface UseStreamOptions {
-  functionId: string;
-  functionVersionId: string;
+  appId: string;
+  sessionId: string;
   videoElementId?: string;
   audioElementId?: string;
 }
@@ -25,8 +29,8 @@ export interface UseStreamResult {
 }
 
 export default function useStream({
-  functionId,
-  functionVersionId,
+  appId,
+  sessionId,
   videoElementId = "stream-video",
   audioElementId = "stream-audio",
 }: UseStreamOptions): UseStreamResult {
@@ -36,8 +40,12 @@ export default function useStream({
 
   const initialized = useRef(false);
 
+  const { mutate: startNewSession } = useStreamStart(appId);
+  const startNewSessionRef = useRef(startNewSession);
+  startNewSessionRef.current = startNewSession;
+
   useEffect(() => {
-    if (!functionId || !functionVersionId) {
+    if (!sessionId) {
       return;
     }
 
@@ -86,16 +94,30 @@ export default function useStream({
       console.log("onCustomEvent", message);
     }
 
-    const params = createStreamConfig(functionId, functionVersionId, config);
+    const params = createStreamConfig(sessionId, config);
 
     async function connect() {
       try {
+        const sessionExists = await checkSession(sessionId, config);
+        if (!sessionExists) {
+          notifications.show({
+            id: streamStartNotification,
+            message:
+              "This session is no longer available, starting a new streaming session...",
+            loading: true,
+            autoClose: 20000,
+          });
+
+          return startNewSessionRef.current();
+        }
+
         await AppStreamer.connect({
-          streamSource: "direct",
+          streamSource: StreamType.NVCF,
+          logLevel: LogLevel.DEBUG,
+          logFormat: LogFormat.TEXT,
           streamConfig: {
             videoElementId,
             audioElementId,
-            authenticate: false,
             maxReconnects: 0,
             nativeTouchEvents: true,
             ...params,
@@ -118,18 +140,6 @@ export default function useStream({
 
     async function start() {
       console.log("Start streaming...");
-      const sessionId = Cookies.get("nvcf-request-id");
-      if (!sessionId) {
-        const response = await fetch(constructSessionControlURL(params), {
-          method: "POST",
-        });
-        if (!response.ok) {
-          const message = await response.text();
-          setError(message);
-          setLoading(false);
-          return;
-        }
-      }
       await connect();
     }
 
@@ -139,29 +149,20 @@ export default function useStream({
         void AppStreamer.terminate();
       }
     };
-  }, [
-    functionId,
-    functionVersionId,
-    videoElementId,
-    audioElementId,
-    config,
-    setError,
-  ]);
+  }, [sessionId, videoElementId, audioElementId, config, setError]);
 
   const terminate = useCallback(async () => {
-    const params = createStreamConfig(functionId, functionVersionId, config);
-    const response = await fetch(constructSessionControlURL(params), {
-      method: "DELETE",
-    });
-    if (!response.ok) {
-      const message = await response.text();
-      setError(message);
-      setLoading(false);
-      return;
+    try {
+      await AppStreamer.terminate(true);
+    } catch (error) {
+      setError(
+        "info" in (error as StreamEvent)
+          ? (error as StreamEvent).info
+          : (error as Error),
+      );
+      console.error("Error terminating stream:", error);
     }
-
-    await AppStreamer.terminate();
-  }, [functionId, functionVersionId, config, setError]);
+  }, [setError]);
 
   return {
     loading,
@@ -170,19 +171,33 @@ export default function useStream({
   };
 }
 
+async function checkSession(
+  sessionId: string,
+  config: Config,
+): Promise<boolean> {
+  const url = createStreamURL(sessionId, config);
+  url.pathname += "/sign_in";
+
+  try {
+    const response = await fetch(url, { method: "HEAD" });
+    return response.ok;
+  } catch (error) {
+    console.error(`Failed to check the current streaming session:`, error);
+    return false;
+  }
+}
+
 /**
  * Creates URL parameters for streaming the application from NVCF.
  * Returns URLSearchParams instance with values that must be passed to streamConfig object in
  * the `urlLocation.search` field.
  *
- * @param functionId
- * @param functionVersionId
+ * @param sessionId
  * @param config
  * @returns {URLSearchParams}
  */
 function createStreamConfig(
-  functionId: string,
-  functionVersionId: string,
+  sessionId: string,
   config: Config,
 ): Partial<DirectConfig> {
   const params: DirectConfig = {
@@ -198,15 +213,11 @@ function createStreamConfig(
     server: "",
   };
 
-  let backend = config.endpoints.backend;
-  if (!backend.endsWith("/")) {
-    backend += "/";
-  }
+  // Commented code below enables PE/PLS, replace the <IP_OF_PRIVATE_ENDPOINT> with the IP of the private endpoint created in Azure:
+  // params.mediaServer = "<IP_OF_PRIVATE_ENDPOINT>";
+  //
 
-  const signalingURL = new URL(
-    `./sessions/${functionId}/${functionVersionId}`,
-    backend,
-  );
+  const signalingURL = createStreamURL(sessionId, config);
   params.signalingServer = signalingURL.hostname;
   params.signalingPort = signalingURL.port
     ? Number(signalingURL.port)
@@ -218,6 +229,18 @@ function createStreamConfig(
   return params;
 }
 
-function constructSessionControlURL(params: Partial<DirectConfig>): string {
-  return `https://${params.signalingServer}:${params.signalingPort}${params.signalingPath}/sign_in?${params.signalingQuery?.toString() ?? ""}`;
+/**
+ * Constructs a URL object for streaming the specified NVCF function.
+ *
+ * @param sessionId
+ * @param config
+ * @returns {URL}
+ */
+function createStreamURL(sessionId: string, config: Config): URL {
+  let backend = config.endpoints.backend;
+  if (!backend.endsWith("/")) {
+    backend += "/";
+  }
+
+  return new URL(`./sessions/${sessionId}`, backend);
 }

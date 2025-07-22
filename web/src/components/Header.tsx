@@ -9,8 +9,13 @@ import {
   Text,
 } from "@mantine/core";
 import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession.ts";
-import { IconChevronDown, IconLogout } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconDeviceDesktop,
+  IconLogout,
+} from "@tabler/icons-react";
 import { useAuth } from "react-oidc-context";
+import { NavLink } from "react-router-dom";
 import Logo from "../static/logo.png";
 
 export default function Header() {
@@ -35,10 +40,14 @@ export default function Header() {
 
   return (
     <Flex bg={"black.0"} p={"md"} align={"center"} gap={"xs"}>
-      <Image src={Logo} w={40} h={40} />
-      <Text fw={700} c={"white"} tt={"uppercase"} size={"xl"}>
-        Omniverse
-      </Text>
+      <NavLink to={"/"} style={{ textDecoration: "none" }}>
+        <Group>
+          <Image src={Logo} w={40} h={40} />
+          <Text fw={700} c={"white"} tt={"uppercase"} size={"xl"}>
+            Omniverse
+          </Text>
+        </Group>
+      </NavLink>
       <Flex justify={"end"} flex={1}>
         <Menu>
           <Menu.Target>
@@ -54,6 +63,14 @@ export default function Header() {
 
           <Menu.Dropdown>
             <Menu.Label>{auth.user?.profile.email}</Menu.Label>
+            <Menu.Item
+              component={NavLink}
+              leftSection={<IconDeviceDesktop />}
+              to={"/sessions"}
+              target={"_blank"}
+            >
+              Sessions
+            </Menu.Item>
             <Menu.Item leftSection={<IconLogout />} onClick={logOut}>
               Log out
             </Menu.Item>

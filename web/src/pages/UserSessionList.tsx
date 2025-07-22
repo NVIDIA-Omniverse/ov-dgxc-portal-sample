@@ -1,31 +1,34 @@
 import {
-  Badge,
-  BadgeProps,
+  Anchor,
+  Breadcrumbs,
+  Flex,
   Loader,
   Pagination,
   Stack,
   Table,
-  Title,
   Text,
-  Flex,
-  Select,
+  Title,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { NavLink, useSearchParams } from "react-router-dom";
 import Header from "../components/Header.tsx";
-import LoaderError from "../components/LoaderError.tsx";
-import SessionTerminateButton from "../components/SessionTerminateButton.tsx";
-import { useConfig } from "../hooks/useConfig.ts";
-import { getSessions, StreamingSession } from "../state/Sessions.ts";
+import LoaderError from "../components/LoaderError";
+import SessionDuration from "../components/SessionDuration";
+import SessionStatus from "../components/SessionStatus";
+import SessionStatusFilter from "../components/SessionStatusFilter";
+import SessionTerminateButton from "../components/SessionTerminateButton";
+import { useConfig } from "../hooks/useConfig";
+import { getSessions, StreamingSession } from "../state/Sessions";
 
 /**
- * The web page for system administrators to see a list of streaming sessions.
+ * The web page to see a list of streaming sessions.
  * Can filter sessions based on the current status (active, idle, stopped, connecting).
+ * System administrators can see all sessions started by other users.
  *
- * For each active session displays a terminate button that allows a system administrator to
+ * For each active session displays a terminate button that allows users to
  * forcefully close the user connection.
  */
-export default function Admin() {
+export default function UserSessionList() {
   const config = useConfig();
 
   const [params, setParams] = useSearchParams();
@@ -55,8 +58,18 @@ export default function Admin() {
   return (
     <Stack>
       <Header />
+
       <Stack px={"xl"} py={"md"}>
-        <Title c={"gray"}>Admin panel</Title>
+        <Title c={"gray"}>Sessions</Title>
+
+        <Breadcrumbs>
+          <Anchor component={NavLink} to="/">
+            Main page
+          </Anchor>
+          <Anchor component={NavLink} to="/sessions">
+            Sessions
+          </Anchor>
+        </Breadcrumbs>
 
         {isLoading ? (
           <Loader />
@@ -68,13 +81,8 @@ export default function Admin() {
           data && (
             <>
               <Flex py={"md"}>
-                <Select
-                  label={"Status"}
-                  placeholder={"---"}
-                  clearable
-                  checkIconPosition={"right"}
-                  data={["active", "stopped", "connecting", "idle"]}
-                  value={status}
+                <SessionStatusFilter
+                  value={status as StreamingSession["status"]}
                   onChange={updateStatus}
                 />
               </Flex>
@@ -82,42 +90,42 @@ export default function Admin() {
               <Table withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th w={30}>#</Table.Th>
+                    <Table.Th maw={300}>#</Table.Th>
                     <Table.Th>App</Table.Th>
-                    <Table.Th>Function ID</Table.Th>
-                    <Table.Th>Function Version</Table.Th>
                     <Table.Th>User</Table.Th>
                     <Table.Th w={125}>Status</Table.Th>
                     <Table.Th>Start date</Table.Th>
                     <Table.Th>End date</Table.Th>
+                    <Table.Th>Duration</Table.Th>
                     <Table.Th></Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
                   {data?.items.map((session) => (
                     <Table.Tr key={session.id} h={50}>
-                      <Table.Td w={50} fz={"xs"}>
+                      <Table.Td fz={"xs"} maw={300}>
                         <Text
-                          truncate={"end"}
-                          w={50}
                           fz={"xs"}
+                          maw={300}
+                          truncate={"end"}
                           title={session.id}
                         >
                           {session.id}
                         </Text>
                       </Table.Td>
                       <Table.Td fz={"xs"}>
-                        {session.app
-                          ? `${session.app.productArea} ${session.app.title} ${session.app.version}`
-                          : "(unknown)"}{" "}
+                        {session.app ? (
+                          <Anchor component={NavLink} fz={"xs"} to={`/app/${session.app.id}`}>
+                            {session.app.productArea} {session.app.title}{" "}
+                            {session.app.version}
+                          </Anchor>
+                        ) : (
+                          "(unknown)"
+                        )}{" "}
                       </Table.Td>
-                      <Table.Td fz={"xs"}>{session.functionId}</Table.Td>
-                      <Table.Td fz={"xs"}>{session.functionVersionId}</Table.Td>
                       <Table.Td fz={"xs"}>{session.userName}</Table.Td>
                       <Table.Td>
-                        <Badge color={getStatusColor(session.status)}>
-                          {session.status}
-                        </Badge>
+                        <SessionStatus status={session.status} />
                       </Table.Td>
                       <Table.Td fz={"xs"}>
                         {session.startDate.toLocaleString()}
@@ -126,6 +134,9 @@ export default function Admin() {
                         {session.endDate
                           ? session.endDate.toLocaleString()
                           : ""}
+                      </Table.Td>
+                      <Table.Td fz={"xs"}>
+                        <SessionDuration session={session} />
                       </Table.Td>
                       <Table.Td>
                         {session.status !== "STOPPED" && (
@@ -149,21 +160,4 @@ export default function Admin() {
       </Stack>
     </Stack>
   );
-}
-
-function getStatusColor(
-  status: StreamingSession["status"],
-): BadgeProps["color"] {
-  switch (status) {
-    case "ACTIVE":
-      return "green";
-    case "CONNECTING":
-      return "blue";
-    case "IDLE":
-      return "orange";
-    case "STOPPED":
-      return "gray";
-    default:
-      return "red";
-  }
 }

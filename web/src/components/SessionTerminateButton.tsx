@@ -18,7 +18,7 @@ export default function SessionTerminateButton({
     mutationFn: async () => {
       if (
         confirm(
-          `Are you sure you want to terminate session ${session.id}? This will disconnect the user.`,
+          `Are you sure you want to terminate session ${session.id}? This will disconnect the stream if it's active. All unsaved work will be lost.`,
         )
       ) {
         try {
@@ -31,12 +31,14 @@ export default function SessionTerminateButton({
             title: "Failed to terminate session",
             message,
             color: "red",
+            autoClose: 20000,
           });
         }
       }
     },
     onSuccess: () => {
-      return queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["app-sessions"] });
     }
   });
 
