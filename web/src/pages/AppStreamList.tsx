@@ -13,7 +13,7 @@ import { IconDeviceDesktop } from "@tabler/icons-react";
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useAuth } from "react-oidc-context";
-import { NavLink, useParams } from "react-router-dom";
+import { Navigate, NavLink, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import LoaderError from "../components/LoaderError";
 import Placeholder from "../components/Placeholder";
@@ -25,11 +25,26 @@ import useStreamStart, {
   streamStartNotification,
 } from "../hooks/useStreamStart";
 import { getSessions, StreamingSessionPage } from "../state/Sessions";
+import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession.ts";
+import { AuthenticationType, getStreamingApp } from "../state/Apps.ts";
 
 export default function AppStreamList() {
   const config = useConfig();
+  const nucleus = useNucleusSession();
 
   const { appId = "" } = useParams<{ appId: string }>();
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["streaming-app", appId],
+    queryFn: async () =>
+      await getStreamingApp({
+        appId,
+        config,
+      }),
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
 
   const query = useQuery({
     queryKey: ["app-sessions", appId],
@@ -62,6 +77,34 @@ export default function AppStreamList() {
 
   if (!appId) {
     cancelStream();
+  }
+
+  if (isLoading) {
+    return (
+      <Stack gap={0} style={{ height: "100vh" }}>
+        <Header />
+        <Loader m={"sm"} />
+      </Stack>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Stack gap={0} style={{ height: "100vh" }}>
+        <Header />
+        <LoaderError title={"Failed to load the stream"}>
+          {error.toString()}
+        </LoaderError>
+      </Stack>
+    );
+  }
+
+  if (data?.authType === AuthenticationType.nucleus && !nucleus.established) {
+    return (
+      <Navigate
+        to={`/nucleus/authenticate?redirectAfter=/app/${appId}/sessions`}
+      />
+    );
   }
 
   return (

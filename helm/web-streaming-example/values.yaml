@@ -109,6 +109,12 @@ config:
   # Increase this value if you have headers that exceed the default limit.
   h11MaxIncompleteEventSize: 16384
 
+  # WebSocket header size limits - configured as environment variables
+  # These control the websockets library limits during handshake
+  # DEFAULT: 16KB line length, 256 headers - increase for large Cookie headers
+  websocketsMaxLineLength: 16384
+  websocketsMaxNumHeaders: 256
+
 apiKeys:
   # Whether to enable API key authentication
   enabled: false

@@ -1,5 +1,14 @@
 # Omniverse on DGX Cloud - Portal Sample Changelog
 
+## Version 1.3.0 - October 2025
+
+- Fixed an issue where WebSocket endpoints couldn't be used with large headers
+- Check Nucleus authentication before starting a streaming session
+- Added the `page` field for grouping applications on different pages with a sidebar
+- Added `/api/pages/` endpoint that returns the page order for the sidebar
+- Removed unused `image` field for applications
+- Update Python container to 3.13
+
 ## Version 1.2.0 - August 2025
 
  - Use OpenID Connect Discovery for authentication*

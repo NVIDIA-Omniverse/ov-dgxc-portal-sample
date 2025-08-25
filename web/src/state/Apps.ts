@@ -10,6 +10,7 @@ export interface StreamingApp {
   id: string;
   title: string;
   productArea: string;
+  page: string;
   category: string;
   icon: string;
   latestVersion: StreamingAppVersion;
@@ -138,7 +139,11 @@ interface StreamingAppResponseItem {
    */
   published_at: string;
   /**
-   * A category used for grouping the applications.
+   * A page used for grouping applications in the sidebar.
+   */
+  page: string;
+  /**
+   * A category for grouping applications within a page.
    * @example Template Applications
    */
   category: string;
@@ -176,7 +181,7 @@ export interface GetStreamingAppsParams {
 export async function getStreamingApps({
   config,
 }: GetStreamingAppsParams): Promise<
-  Map<StreamingApp["category"], Map<StreamingApp["title"], StreamingApp>>
+  Map<StreamingApp["page"], StreamingApp[]>
 > {
   const response = await fetch(
     `${config.endpoints.backend}/apps/?status=${AppStatus.Active}`,
@@ -184,28 +189,23 @@ export async function getStreamingApps({
   if (response.ok) {
     const body = (await response.json()) as StreamingAppResponseItem[];
 
-    const categories = new Map<
-      StreamingApp["category"],
-      Map<StreamingApp["title"], StreamingApp>
-    >();
-
+    const pages = new Map<StreamingApp["page"], StreamingApp[]>();
+    const apps = new Map<StreamingApp["title"], StreamingApp>();
     for (const item of body) {
-      const category =
-        categories.get(item.category) ??
-        new Map<StreamingApp["title"], StreamingApp>();
-
+      const page = pages.get(item.page) ?? [];
       const version: StreamingAppVersion = {
         id: item.id,
         name: item.version,
         functionId: item.function_id,
         functionVersionId: item.function_version_id,
       };
-      const app: StreamingApp = category.get(item.title) ?? {
+      const app: StreamingApp = apps.get(item.title) ?? {
         id: item.id,
         title: item.title,
         productArea: item.product_area,
         icon: item.icon,
         category: item.category,
+        page: item.page,
         latestVersion: version,
         versions: [],
         mediaServer: item.media_server,
@@ -216,21 +216,22 @@ export async function getStreamingApps({
       }
 
       app.versions.push(version);
-      category.set(app.title, app);
-      categories.set(app.category, category);
+      apps.set(app.title, app);
+      page.push(app);
+      pages.set(app.page, page);
     }
 
-    for (const category of categories.values()) {
-      for (const app of category.values()) {
+    for (const page of pages.values()) {
+      for (const app of page.values()) {
         app.versions.sort((a, b) => -semver.compare(a.name, b.name));
       }
     }
 
-    return categories;
+    return pages;
   } else {
     throw new HttpError(
       `Failed to load streaming applications -- HTTP${response.status}.\n${response.statusText}`,
-      response.status
+      response.status,
     );
   }
 }
@@ -250,9 +251,7 @@ export async function getStreamingApp({
   appId,
   config,
 }: GetStreamingAppParams): Promise<StreamingApp | null> {
-  const response = await fetch(
-    `${config.endpoints.backend}/apps/${appId}`,
-  );
+  const response = await fetch(`${config.endpoints.backend}/apps/${appId}`);
   if (response.ok) {
     const body = (await response.json()) as StreamingAppResponseItem;
     if (body) {
@@ -261,6 +260,7 @@ export async function getStreamingApp({
         title: body.title,
         productArea: body.product_area,
         category: body.category,
+        page: body.page,
         icon: body.icon,
         latestVersion: {
           id: body.id,
@@ -284,6 +284,6 @@ export async function getStreamingApp({
 
   throw new HttpError(
     `Failed to load the streaming application -- HTTP${response.status}.\n${response.statusText}`,
-    response.status
+    response.status,
   );
 }

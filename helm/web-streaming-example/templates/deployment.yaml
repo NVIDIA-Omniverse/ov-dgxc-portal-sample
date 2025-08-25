@@ -96,6 +96,11 @@ spec:
             - name: API_KEYS_PATH
               value: "/app/secrets/api-keys.toml"
             {{- end }}
+            # WebSocket library environment variables - set before Python imports
+            - name: WEBSOCKETS_MAX_LINE_LENGTH
+              value: "{{ .Values.config.websocketsMaxLineLength }}"
+            - name: WEBSOCKETS_MAX_NUM_HEADERS
+              value: "{{ .Values.config.websocketsMaxNumHeaders }}"
             {{- range $key, $value := .Values.config.extraVars }}
             - name: {{ $key }}
               value: {{ $value | quote }}

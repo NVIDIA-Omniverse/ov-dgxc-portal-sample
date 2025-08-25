@@ -1,0 +1,52 @@
+.applicationPages {
+    position: relative;
+    border-radius: var(--mantine-radius-default);
+    border: 1px solid var(--mantine-color-dark-4);
+    min-width: 250px;
+    max-width: 400px;
+    overflow: hidden;
+}
+
+.applicationPagesTitle {
+    font-size: 9pt;
+    font-weight: bold;
+    background-color: var(--mantine-color-dark-6);
+    text-align: center;
+    padding: var(--mantine-spacing-xs);
+}
+
+.applicationPage {
+    position: relative;
+    padding: var(--mantine-spacing-xs);
+    margin: 3px 3px 4px 3px;
+    height: 30px;
+    box-sizing: border-box;
+    min-width: 0;
+    width: calc(100% - 6px);
+    text-overflow: ellipsis;
+    text-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.applicationPage[data-active="true"] {
+    background-color: var(--mantine-color-dark-4);
+}
+
+.applicationPage::after {
+    position: absolute;
+    bottom: -4px;
+    left: 10px;
+    right: 10px;
+    content: " ";
+    box-sizing: border-box;
+    height: 1px;
+    border-bottom: 1px solid var(--mantine-color-dark-4);
+}
+
+.applicationPage:last-of-type::after {
+    display: none;
+}
+
+.applicationPage:last-of-type {
+    border-bottom: none;
+}

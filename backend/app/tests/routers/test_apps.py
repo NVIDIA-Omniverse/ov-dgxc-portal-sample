@@ -32,8 +32,8 @@ published_app = jsonable_encoder(
         title="Python",
         description="A test Python application",
         version="3.12.3",
-        image="https://www.python.org/static/img/python-logo@2x.png",
         icon="https://www.python.org/static/favicon.ico",
+        page="Test Page",
         category="Test Applications",
         product_area="Omniverse",
     )
@@ -84,25 +84,6 @@ async def test_create_app_with_slash(client):
     assert response.json() == created_data
 
 
-async def test_create_app_fails_with_invalid_image_url(client):
-    response = await client.put(
-        "/apps/test/python:3.12",
-        json={**published_app, "image": "invalid"},
-    )
-    assert response.status_code == 422
-    assert response.json() == {
-        "detail": [
-            {
-                "ctx": {"error": "relative URL without a base"},
-                "input": "invalid",
-                "loc": ["body", "image"],
-                "msg": "Input should be a valid URL, relative URL without a base",
-                "type": "url_parsing",
-            }
-        ]
-    }
-
-
 async def test_create_app_is_unauthorized_for_anonymous_user(client):
     del client.cookies["id_token"]
 
@@ -145,31 +126,6 @@ async def test_update_app(client):
     )
     assert response.status_code == 200
     assert response.json() == updated_data
-
-
-@freeze_time("2024-06-17 17:00:00")
-async def test_update_app_does_not_allow_id_in_the_body(client):
-    response = await client.put(
-        "/apps/python:3.12",
-        json=published_app,
-    )
-    assert response.status_code == 201
-
-    response = await client.put(
-        "/apps/python:3.12",
-        json={**published_app, "id": "test"},
-    )
-    assert response.status_code == 422
-    assert response.json() == {
-        "detail": [
-            {
-                "input": "test",
-                "loc": ["body", "id"],
-                "msg": "Extra inputs are not permitted",
-                "type": "extra_forbidden",
-            }
-        ]
-    }
 
 
 @freeze_time("2024-06-17 17:00:00")

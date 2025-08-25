@@ -39,7 +39,7 @@ export default function ApplicationCard({ app }: ApplicationCardProps) {
           flex={"1"}
           style={{ overflow: "hidden" }}
         >
-          <Image src={app.icon} w={64} h={64} title={app.title} />
+          <Image src={app.icon} width={64} height={64} title={app.title} />
           <Stack gap={"3px"} flex={"1"} style={{ overflow: "hidden" }}>
             <Text size={"sm"}>{app.productArea}</Text>
             <Text

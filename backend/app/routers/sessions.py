@@ -673,6 +673,9 @@ async def get_session(
     session_id: str,
 ):
     session = await query_session(user, session_id)
+    if isinstance(session, Response):
+        return session
+
     return SessionResponse.model_validate(session, from_attributes=True)
 
 

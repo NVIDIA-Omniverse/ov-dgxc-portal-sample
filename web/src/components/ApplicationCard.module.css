@@ -1,6 +1,7 @@
 .applicationCard {
     padding: 0;
     transition: all 0.1s ease-in;
+    height: 92px;
 }
 
 .applicationCard:hover {

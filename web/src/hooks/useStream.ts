@@ -59,6 +59,10 @@ export default function useStream({
     setLoading(true);
     setError("");
 
+    function onUpdate(message: StreamEvent) {
+      console.log("onUpdate", message);
+    }
+
     function onStart(message: StreamEvent) {
       console.log("onStart", message);
 
@@ -87,11 +91,11 @@ export default function useStream({
       console.log("onTerminate", message);
     }
 
-    function onUpdate(message: StreamEvent) {
-      console.log("onUpdate", message);
+    function onStreamStats(message: StreamEvent) {
+      console.log("onStreamStats", message);
     }
 
-    function onCustomEvent(message: StreamEvent) {
+    function onCustomEvent(message: unknown) {
       console.log("onCustomEvent", message);
     }
 
@@ -122,10 +126,11 @@ export default function useStream({
             maxReconnects: 0,
             nativeTouchEvents: true,
             ...params,
+            onUpdate,
             onStart,
             onStop,
             onTerminate,
-            onUpdate,
+            onStreamStats,
             onCustomEvent,
           },
         });

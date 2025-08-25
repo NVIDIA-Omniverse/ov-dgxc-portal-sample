@@ -30,7 +30,7 @@ a stream:
 
 ## Prerequisites
 
-* [Python 3.12](https://www.python.org/downloads/)
+* [Python 3.12](https://www.python.org/downloads/) or above
 * [Poetry](https://python-poetry.org/docs/#installation)
 
 ## Install
@@ -104,6 +104,7 @@ curl -X 'PUT' \
   "version": "2024.1.0",
   "image": "https://launcher-prod.s3.us-east-2.amazonaws.com/create/2023.2.5/image.png",
   "icon": "https://launcher-prod.s3.us-east-2.amazonaws.com/create/2023.2.5/icon.png",
+  "page": "Template Applications",
   "category": "Template Applications",
   "product_area": "Omniverse"
 }'
@@ -132,6 +133,21 @@ curl -X 'DELETE' \
   -H 'Accept: */*'
 ```
 
+To set the page order in the sidemenu displayed on the home page:
+```bash
+curl -X 'PUT' \
+  'http://127.0.0.1:8000/pages/' \
+  -H 'Accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '[
+    {"name": "Template Applications", "order": 1},
+    {"name": "Test Applications", "order": 2},
+  ]'
+```
+
+### Migrations
+
+To generate migrations for updated database models, use the `aerich migrate` command and then `poetry run migrations`.
 
 ### Tests
 

@@ -177,7 +177,7 @@ class Settings:
                     "models": ["app.models", "aerich.models"],
                     "default_connection": "default",
                 }
-            }
+            },
         }
 
 

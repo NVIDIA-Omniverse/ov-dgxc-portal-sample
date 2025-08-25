@@ -130,6 +130,7 @@ def create_app():
             version="1.0.0",
             image="https://www.python.org/static/img/python-logo@2x.png",
             icon="https://www.python.org/static/favicon.ico",
+            page="",
             category="",
             product_area="",
         )

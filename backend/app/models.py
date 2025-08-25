@@ -3,7 +3,7 @@ from typing import Any, Type, TypeVar, Generic, Optional, TypeAlias, TypedDict
 
 import pydantic
 import tortoise
-from pydantic import HttpUrl, BaseModel as PydanticBaseModel
+from pydantic import HttpUrl, BaseModel as PydanticBaseModel, ConfigDict
 from pydantic_core import Url
 from tortoise import Model, fields
 from tortoise.contrib.pydantic import pydantic_model_creator, PydanticModel
@@ -104,8 +104,8 @@ class PublishedAppModel(Model):
     title = fields.CharField(max_length=100)
     description = fields.TextField()
     version = fields.CharField(max_length=50)
-    image = UrlField(max_length=255)
     icon = UrlField(max_length=255)
+    page = fields.CharField(max_length=150)
     category = fields.CharField(max_length=150)
     product_area = fields.CharField(max_length=150)
     published_at = fields.DatetimeField(auto_now_add=True, null=True)
@@ -123,7 +123,10 @@ class PublishedAppModel(Model):
 
 
 _PublishedApp: Type[PydanticModel] = pydantic_model_creator(
-    PublishedAppModel, name="PublishedApp", exclude=("id",)
+    PublishedAppModel,
+    name="PublishedApp",
+    exclude=("id",),
+    model_config=ConfigDict(extra="allow")
 )
 
 
@@ -194,3 +197,16 @@ class SessionApp(PydanticBaseModel):
 
 class SessionResponse(Session):
     app: Optional[SessionApp] = None
+
+
+class PublishedPageModel(Model):
+    name = fields.CharField(primary_key=True, max_length=150)
+    order = fields.SmallIntField(null=True, default=None)
+
+    class Meta:
+        table = "published_page"
+
+
+PublishedPage: Type[PydanticModel] = pydantic_model_creator(
+    PublishedPageModel, name="PublishedPage"
+)

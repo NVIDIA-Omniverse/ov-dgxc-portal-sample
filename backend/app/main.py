@@ -13,7 +13,7 @@ from tortoise.contrib.fastapi import RegisterTortoise
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
 from app.api_keys import api_keys
-from app.routers import apps_router, sessions_router
+from app.routers import apps_router, sessions_router, pages_router
 from app.routers.sessions import watch_session_timeout, watch_idle_sessions
 from app.settings import settings
 
@@ -93,6 +93,7 @@ async def integrityerror_exception_handler(
 
 api.include_router(apps_router)
 api.include_router(sessions_router)
+api.include_router(pages_router)
 
 
 def start():
@@ -129,4 +130,3 @@ def migrations():
             await Tortoise.close_connections()
 
     asyncio.run(migrate())
-
