@@ -1,5 +1,5 @@
 import semver from "semver";
-import { Config } from "../providers/ConfigProvider.tsx";
+import { Config } from "../providers/ConfigProvider";
 import { HttpError } from "../util/Errors";
 
 /**

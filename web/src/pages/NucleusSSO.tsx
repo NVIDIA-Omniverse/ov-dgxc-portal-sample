@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { authenticate } from "@omniverse/auth/react/SSO";
 import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
 import { Button, Loader, Stack } from "@mantine/core";
-import LoaderError from "../components/LoaderError.tsx";
+import LoaderError from "../components/LoaderError";
 
 /**
  * Accepts single sign on results for Nucleus authentication and

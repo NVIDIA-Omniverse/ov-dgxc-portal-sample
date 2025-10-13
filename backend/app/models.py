@@ -70,6 +70,9 @@ class NvcfFunctionStatus(Enum):
     # The application deployment on NVCF has failed with an error
     error = "ERROR"
 
+    # The application is recycling all active pods or does not become active after the deployment
+    degraded = "DEGRADED"
+
 
 class NvcfFunction(TypedDict):
     id: NvcfFunctionId

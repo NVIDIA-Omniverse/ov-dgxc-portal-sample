@@ -1,5 +1,5 @@
-import { Config } from "../providers/ConfigProvider.tsx";
-import { HttpError } from "../util/Errors.ts";
+import { Config } from "../providers/ConfigProvider";
+import { HttpError } from "../util/Errors";
 
 export interface GetPagesParams {
   config: Config;

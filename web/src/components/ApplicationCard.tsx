@@ -9,7 +9,7 @@ import {
 } from "@mantine/core";
 import { IconChevronDown } from "@tabler/icons-react";
 import { useState } from "react";
-import { StreamingApp } from "../state/Apps.ts";
+import { StreamingApp } from "../state/Apps";
 import classes from "./ApplicationCard.module.css";
 
 export interface ApplicationCardProps {

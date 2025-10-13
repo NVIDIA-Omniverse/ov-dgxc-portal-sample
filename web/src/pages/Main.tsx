@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import AuthProvider from "../providers/AuthProvider.tsx";
+import AuthProvider from "../providers/AuthProvider";
 import AuthRequired from "../components/AuthRequired";
 import { Outlet } from "react-router-dom";
 

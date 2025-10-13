@@ -8,7 +8,7 @@ import {
   Menu,
   Text,
 } from "@mantine/core";
-import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession.ts";
+import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
 import {
   IconChevronDown,
   IconDeviceDesktop,

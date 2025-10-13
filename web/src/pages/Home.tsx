@@ -2,14 +2,14 @@ import { Card, Group, Loader, SimpleGrid, Stack, Title } from "@mantine/core";
 import { IconAppWindow, IconTableFilled } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "../components/Header";
-import LoaderError from "../components/LoaderError.tsx";
-import Placeholder from "../components/Placeholder.tsx";
-import { useConfig } from "../hooks/useConfig.ts";
-import { getStreamingApps, StreamingApp } from "../state/Apps.ts";
+import LoaderError from "../components/LoaderError";
+import Placeholder from "../components/Placeholder";
+import { useConfig } from "../hooks/useConfig";
+import { getStreamingApps, StreamingApp } from "../state/Apps";
 import { useSearchParams } from "react-router-dom";
-import ApplicationCard from "../components/ApplicationCard.tsx";
-import ApplicationPages from "../components/ApplicationPages.tsx";
-import { comparePageOrder, getPages } from "../state/Pages.ts";
+import ApplicationCard from "../components/ApplicationCard";
+import ApplicationPages from "../components/ApplicationPages";
+import { comparePageOrder, getPages } from "../state/Pages";
 
 /**
  * Displays applications available for streaming.
@@ -46,16 +46,17 @@ export default function Home() {
   const selectedPage = searchParams.get("page") ?? pageNames?.[0];
 
   const apps = selectedPage ? appsByPages?.get(selectedPage) : [];
-  const categories = apps?.reduce(
-    (categories, app) => {
-      const categoryName = app.category ?? "";
-      const category = categories[categoryName] ?? [];
-      category.push(app);
-      categories[categoryName] = category;
-      return categories;
-    },
-    {} as Record<string, StreamingApp[]>,
-  ) ?? {};
+  const categories =
+    apps?.reduce(
+      (categories, app) => {
+        const categoryName = app.category ?? "";
+        const category = categories[categoryName] ?? [];
+        category.push(app);
+        categories[categoryName] = category;
+        return categories;
+      },
+      {} as Record<string, StreamingApp[]>
+    ) ?? {};
 
   const error = appError || pageError;
   return (
@@ -71,10 +72,7 @@ export default function Home() {
           </LoaderError>
         ) : appsByPages!.size ? (
           <Group align={"start"} justify={"stretch"} wrap={"nowrap"}>
-            <ApplicationPages
-              pages={pageNames}
-              selectedPage={selectedPage}
-            />
+            <ApplicationPages pages={pageNames} selectedPage={selectedPage} />
             <Stack flex={1}>
               {Object.entries(categories).map(([category, apps]) => (
                 <Card key={category} flex={1} radius={0} withBorder>

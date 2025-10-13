@@ -2,8 +2,7 @@ import AuthForm, { AuthenticationResult } from "@omniverse/auth/react/AuthForm";
 import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box } from "@mantine/core";
-
-import { useConfig } from "../hooks/useConfig.ts";
+import { useConfig } from "../hooks/useConfig";
 
 /**
  * Displays a login form for the configured Nucleus server

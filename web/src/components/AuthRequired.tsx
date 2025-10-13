@@ -61,7 +61,7 @@ export default function AuthRequired({ children }: AuthRequiredProps) {
     }
   }, [auth, hasTriedSignIn]);
 
-  if (auth.isLoading || hasTriedSignIn) {
+  if ((auth.isLoading && !auth.isAuthenticated) || hasTriedSignIn) {
     return <Loader m={"md"} />;
   }
 

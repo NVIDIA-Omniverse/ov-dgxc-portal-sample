@@ -1,4 +1,4 @@
-import { ActionIcon, Box, Button, Flex, Group, Loader, Stack } from "@mantine/core";
+import { ActionIcon, Box, Flex, Loader, Stack } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
@@ -15,6 +15,8 @@ import useStream from "../hooks/useStream";
 import useStreamEndNotification from "../hooks/useStreamEndNotification";
 import useStreamStart from "../hooks/useStreamStart";
 import { AuthenticationType, getStreamingApp, StreamingApp } from "../state/Apps";
+import { StreamLoader } from "../components/StreamLoader";
+import { StreamError } from "../components/StreamError";
 
 /**
  * Loads the information about the application with the specified ID
@@ -47,7 +49,9 @@ export default function AppStream() {
     return (
       <Stack gap={0} style={{ height: "100vh" }}>
         <Header />
-        <Loader m={"sm"} />
+        <Stack gap={0} style={{ position: "relative" }}>
+          <StreamLoader />
+        </Stack>
       </Stack>
     );
   }
@@ -75,7 +79,9 @@ export default function AppStream() {
         return (
           <Stack gap={0} style={{ height: "100vh" }}>
             <Header />
-            <Loader m={"sm"} />
+            <Stack gap={0} style={{ position: "relative" }}>
+              <Loader m={"sm"} />
+            </Stack>
           </Stack>
         );
       }
@@ -90,7 +96,7 @@ export default function AppStream() {
         Application not found.
       </LoaderError>
     </Stack>
-  )
+  );
 }
 
 interface StreamSessionProps {
@@ -229,31 +235,16 @@ function AppStreamSession({ app, sessionId }: StreamSessionProps) {
           />
           <audio id={"stream-audio"} muted />
 
-          {stream.loading && <Loader m={"sm"} />}
-          {stream.error && (
-            <LoaderError title={"Failed to load the stream"}>
-              {stream.error.toString()}
-
-              <Group mt={"md"}>
-                <Button
-                  variant={"white"}
-                  disabled={streamStart.isPending}
-                  loading={streamStart.isPending}
-                  onClick={reload}
-                >
-                  Reload
-                </Button>
-                <Button
-                  variant={"white"}
-                  disabled={streamStart.isPending}
-                  loading={streamStart.isPending}
-                  onClick={() => void startNewSession()}
-                >
-                  Start a new session
-                </Button>
-              </Group>
-            </LoaderError>
-          )}
+          {stream.loading && <StreamLoader />}
+          {stream.error || streamStart.error ? (
+            <StreamError
+              disabled={streamStart.isPending}
+              loading={streamStart.isPending}
+              error={stream.error || streamStart.error}
+              onReload={reload}
+              onStartNewSession={() => void startNewSession()}
+            />
+          ) : null}
         </Box>
       </Stack>
 

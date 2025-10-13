@@ -250,7 +250,10 @@ async def start_stream(
                 return response
         except httpx.TimeoutException:
             return Response(
-                content="Failed to start a streaming session with a timeout -- try again later.",
+                content=(
+                    "This could be caused by network congestion or no GPUs available. "
+                    "Please try again."
+                ),
                 status_code=status.HTTP_408_REQUEST_TIMEOUT,
             )
 

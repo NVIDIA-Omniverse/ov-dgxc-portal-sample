@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink, useSearchParams } from "react-router-dom";
-import Header from "../components/Header.tsx";
+import Header from "../components/Header";
 import LoaderError from "../components/LoaderError";
 import SessionDuration from "../components/SessionDuration";
 import SessionStatus from "../components/SessionStatus";

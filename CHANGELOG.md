@@ -1,5 +1,13 @@
 # Omniverse on DGX Cloud - Portal Sample Changelog
 
+## Version 1.3.1 - October 2025
+
+- Fixed an issue where multiple tabs could try to refresh the authentication session simultaneously
+- Added retries for establishing a new session and connecting to a running session
+- Minor UI changes and added context to status and error messages for clarity
+- Add "DEGRADED" status for NVCF streaming functions
+- Update `@nvidia/omniverse-webrtc-streaming-library` to 5.15.5
+
 ## Version 1.3.0 - October 2025
 
 - Fixed an issue where WebSocket endpoints couldn't be used with large headers

@@ -1,8 +1,8 @@
 import { Button } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useConfig } from "../hooks/useConfig.ts";
-import { StreamingSession, terminateSession } from "../state/Sessions.ts";
+import { useConfig } from "../hooks/useConfig";
+import { StreamingSession, terminateSession } from "../state/Sessions";
 
 export interface SessionTerminateButtonProps {
   session: StreamingSession;

@@ -11,7 +11,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconDeviceDesktop } from "@tabler/icons-react";
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useEffect } from "react";
 import { useAuth } from "react-oidc-context";
 import { Navigate, NavLink, useParams } from "react-router-dom";
 import Header from "../components/Header";
@@ -25,8 +25,11 @@ import useStreamStart, {
   streamStartNotification,
 } from "../hooks/useStreamStart";
 import { getSessions, StreamingSessionPage } from "../state/Sessions";
-import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession.ts";
-import { AuthenticationType, getStreamingApp } from "../state/Apps.ts";
+import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
+import { AuthenticationType, getStreamingApp } from "../state/Apps";
+import { useCallbackRef } from "@mantine/hooks";
+import { StreamLoader } from "../components/StreamLoader";
+import { StreamError } from "../components/StreamError";
 
 export default function AppStreamList() {
   const config = useConfig();
@@ -49,27 +52,10 @@ export default function AppStreamList() {
   const query = useQuery({
     queryKey: ["app-sessions", appId],
     queryFn: async () => {
-      const sessions = await getSessions({ config, appId, status: "alive" });
-      if (!sessions.items.length) {
-        startNewSession();
-      }
-
-      return sessions;
+      return await getSessions({ config, appId, status: "alive" });
     },
     enabled: !!appId,
   });
-
-  const streamStart = useStreamStart(appId);
-  const startNewSession = useCallback(() => {
-    notifications.show({
-      id: streamStartNotification,
-      message: "Starting a new streaming session...",
-      loading: true,
-      autoClose: 20000,
-    });
-
-    streamStart.mutate();
-  }, [streamStart]);
 
   function cancelStream() {
     window.close();
@@ -83,7 +69,9 @@ export default function AppStreamList() {
     return (
       <Stack gap={0} style={{ height: "100vh" }}>
         <Header />
-        <Loader m={"sm"} />
+        <Stack gap={0} style={{ position: "relative" }}>
+          <StreamLoader />
+        </Stack>
       </Stack>
     );
   }
@@ -108,37 +96,76 @@ export default function AppStreamList() {
   }
 
   return (
-    <Stack>
+    <Stack gap={0} style={{ height: "100vh" }}>
       <Header />
-      {query.isLoading || !query.data?.items?.length ? (
-        <Loader mx={"md"} />
-      ) : (
-        <AppStreamListModal
-          appId={appId}
-          loading={streamStart.isPending}
-          query={query}
-          onSessionStart={startNewSession}
-          onSessionCancel={cancelStream}
-        />
-      )}
+      <Stack gap={0} style={{ position: "relative" }}>
+        {query.isLoading ? (
+          <StreamLoader />
+        ) : query.isError ? (
+          <LoaderError>{query.error.toString()}</LoaderError>
+        ) : (
+          <AppStreamListModal
+            appId={appId}
+            query={query}
+            onSessionCancel={cancelStream}
+          />
+        )}
+      </Stack>
     </Stack>
   );
 }
 
 function AppStreamListModal({
   appId,
-  loading = false,
   query,
-  onSessionStart,
   onSessionCancel,
 }: {
   appId: string;
-  loading?: boolean;
   query: UseQueryResult<StreamingSessionPage>;
-  onSessionStart: () => void;
   onSessionCancel: () => void;
 }) {
   const auth = useAuth();
+  const streamStart = useStreamStart(appId);
+  const startNewSession = useCallbackRef(() => {
+    notifications.show({
+      id: streamStartNotification,
+      message: "Starting a new streaming session...",
+      loading: true,
+      autoClose: 30000,
+    });
+
+    streamStart.mutate();
+  });
+
+  const reload = () => {
+    window.location.reload();
+  };
+
+  const autoStart =
+    query.isSuccess && !query.data.items.length && !streamStart.isError;
+
+  useEffect(() => {
+    if (autoStart) {
+      startNewSession();
+    }
+  }, [autoStart, startNewSession]);
+
+  if (autoStart || streamStart.isPending) {
+    return <StreamLoader />;
+  }
+
+  if (streamStart.isError) {
+    return (
+      <StreamError
+        disabled={streamStart.isPending}
+        loading={streamStart.isPending}
+        error={streamStart.error}
+        onReload={reload}
+        onStartNewSession={startNewSession}
+      />
+    );
+  }
+
   return (
     <Modal
       centered
@@ -214,13 +241,7 @@ function AppStreamListModal({
       </ScrollArea>
 
       <Group justify={"center"} mt={"md"}>
-        <Button
-          color={"green"}
-          data-autofocus
-          disabled={loading}
-          loading={loading}
-          onClick={onSessionStart}
-        >
+        <Button color={"green"} data-autofocus onClick={startNewSession}>
           New session
         </Button>
       </Group>

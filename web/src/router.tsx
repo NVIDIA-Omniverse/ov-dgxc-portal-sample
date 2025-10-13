@@ -1,13 +1,13 @@
 import { createBrowserRouter } from "react-router-dom";
 import AppInfo from "./pages/AppInfo";
 import Login from "./pages/Login";
-import UserSessionList from "./pages/UserSessionList.tsx";
-import Main from "./pages/Main.tsx";
-import Home from "./pages/Home.tsx";
-import OpenId from "./pages/OpenId.tsx";
-import AppStream from "./pages/AppStream.tsx";
-import NucleusAuthenticate from "./pages/NucleusAuthenticate.tsx";
-import NucleusSSO from "./pages/NucleusSSO.tsx";
+import UserSessionList from "./pages/UserSessionList";
+import Main from "./pages/Main";
+import Home from "./pages/Home";
+import OpenId from "./pages/OpenId";
+import AppStream from "./pages/AppStream";
+import NucleusAuthenticate from "./pages/NucleusAuthenticate";
+import NucleusSSO from "./pages/NucleusSSO";
 import AppStreamList from "./pages/AppStreamList";
 
 export const router = createBrowserRouter([

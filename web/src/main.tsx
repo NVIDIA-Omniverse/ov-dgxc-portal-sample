@@ -4,10 +4,9 @@ import "@mantine/notifications/styles.css";
 import "./nucleus";
 import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import ConfigProvider from "./providers/ConfigProvider.tsx";
+import ConfigProvider from "./providers/ConfigProvider";
 import { router } from "./router";
 import { HttpError } from "./util/Errors";
 
@@ -62,14 +61,12 @@ const queryClient = new QueryClient({
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <MantineProvider theme={theme} forceColorScheme={"dark"}>
-        <ConfigProvider>
-          <RouterProvider router={router} />
-        </ConfigProvider>
-        <Notifications />
-      </MantineProvider>
-    </QueryClientProvider>
-  </React.StrictMode>,
+  <QueryClientProvider client={queryClient}>
+    <MantineProvider theme={theme} forceColorScheme={"dark"}>
+      <ConfigProvider>
+        <RouterProvider router={router} />
+      </ConfigProvider>
+      <Notifications />
+    </MantineProvider>
+  </QueryClientProvider>,
 );

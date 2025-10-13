@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { Config } from "../providers/ConfigProvider.tsx";
+import { Config } from "../providers/ConfigProvider";
 import { HttpError } from "../util/Errors";
 import { fromSnakeCaseSchema } from "../util/Schemas";
-import { createPaginatedSchema } from "./Pagination.ts";
+import { createPaginatedSchema } from "./Pagination";
 
 /**
  * Schema for validating API responses for streaming sessions.
@@ -132,7 +132,7 @@ export async function startSession({
 
   const text = await response.text();
   throw new HttpError(
-    `Failed to start the session -- HTTP${response.status}.\n${text}`,
+    `Failed to start a streaming session -- HTTP${response.status}.\n${text}`,
     response.status,
   );
 }

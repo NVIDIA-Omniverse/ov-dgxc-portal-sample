@@ -1,4 +1,4 @@
-import { notifications } from "@mantine/notifications";
+import { hideNotification, notifications } from "@mantine/notifications";
 import {
   AppStreamer,
   DirectConfig,
@@ -14,7 +14,10 @@ import { Config } from "../providers/ConfigProvider";
 import { StreamingApp } from "../state/Apps";
 import { useConfig } from "./useConfig";
 import useError from "./useError";
-import useStreamStart, { streamStartNotification } from "./useStreamStart";
+import useStreamStart, {
+  showStreamWarning,
+  streamStartNotification,
+} from "./useStreamStart";
 
 export interface UseStreamOptions {
   app: StreamingApp;
@@ -41,7 +44,7 @@ export default function useStream({
 
   const initialized = useRef(false);
 
-  const { mutate: startNewSession } = useStreamStart(app.id);
+  const { mutateAsync: startNewSession } = useStreamStart(app.id);
   const startNewSessionRef = useRef(startNewSession);
   startNewSessionRef.current = startNewSession;
 
@@ -67,8 +70,6 @@ export default function useStream({
       console.log("onStart", message);
 
       if (message.action === eAction.start) {
-        setLoading(false);
-
         if (message.status === eStatus.success) {
           const video = document.getElementById(
             videoElementId,
@@ -77,8 +78,14 @@ export default function useStream({
           video.play().catch((error) => {
             setError(error as Error);
           });
+
+          setLoading(false);
+          hideNotification(streamStartNotification);
         } else if (message.status === eStatus.error) {
           setError(message.info || "Unknown error.");
+          setLoading(false);
+        } else if (message.status === eStatus.warning) {
+          showStreamWarning();
         }
       }
     }
@@ -110,10 +117,15 @@ export default function useStream({
             message:
               "This session is no longer available, starting a new streaming session...",
             loading: true,
-            autoClose: 20000,
+            autoClose: 30000,
           });
 
-          return startNewSessionRef.current();
+          try {
+            return await startNewSessionRef.current();
+          } catch (error) {
+            setError(error as Error);
+            setLoading(false);
+          }
         }
 
         await AppStreamer.connect({
@@ -123,7 +135,7 @@ export default function useStream({
           streamConfig: {
             videoElementId,
             audioElementId,
-            maxReconnects: 0,
+            maxReconnects: 3,
             nativeTouchEvents: true,
             ...params,
             onUpdate,

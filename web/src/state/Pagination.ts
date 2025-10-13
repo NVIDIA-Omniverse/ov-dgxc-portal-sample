@@ -1,7 +1,5 @@
 import { z } from "zod";
-
 import { fromSnakeCaseSchema } from "../util/Schemas";
-
 
 /**
  * Creates a Zod schema for validating paginated API responses.

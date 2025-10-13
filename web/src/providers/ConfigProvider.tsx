@@ -2,8 +2,8 @@ import { List, Loader, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { ReactNode } from "react";
 import { z, ZodError } from "zod";
-import LoaderError from "../components/LoaderError.tsx";
-import { ConfigContext } from "../context/ConfigContext.tsx";
+import LoaderError from "../components/LoaderError";
+import { ConfigContext } from "../context/ConfigContext";
 
 export interface ConfigProviderProps {
   children?: ReactNode;
