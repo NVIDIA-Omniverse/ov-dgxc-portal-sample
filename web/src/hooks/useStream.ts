@@ -1,3 +1,26 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
 import { hideNotification, notifications } from "@mantine/notifications";
 import {
   AppStreamer,
@@ -21,9 +44,16 @@ import useStreamStart, {
 
 export interface UseStreamOptions {
   app: StreamingApp;
+  /**
+   * The payload from a deep-link that will be passed to the stream.
+   */
+  payload?: string;
   sessionId: string;
   videoElementId?: string;
   audioElementId?: string;
+
+  onCustomEvent?: (message: unknown) => void;
+  onStreamStats?: (message: StreamEvent) => void;
 }
 
 export interface UseStreamResult {
@@ -34,9 +64,12 @@ export interface UseStreamResult {
 
 export default function useStream({
   app,
+  payload,
   sessionId,
   videoElementId = "stream-video",
   audioElementId = "stream-audio",
+  onCustomEvent,
+  onStreamStats,
 }: UseStreamOptions): UseStreamResult {
   const config = useConfig();
   const [loading, setLoading] = useState(false);
@@ -44,9 +77,18 @@ export default function useStream({
 
   const initialized = useRef(false);
 
-  const { mutateAsync: startNewSession } = useStreamStart(app.id);
+  const { mutateAsync: startNewSession } = useStreamStart(app.id, payload);
   const startNewSessionRef = useRef(startNewSession);
   startNewSessionRef.current = startNewSession;
+
+  const callbacks = useRef({
+    onCustomEvent,
+    onStreamStats
+  });
+  callbacks.current = {
+    onCustomEvent,
+    onStreamStats
+  };
 
   useEffect(() => {
     if (!sessionId) {
@@ -81,6 +123,13 @@ export default function useStream({
 
           setLoading(false);
           hideNotification(streamStartNotification);
+
+          if (payload) {
+            void AppStreamer.sendMessage({
+              event_type: "apply_deeplink_request",
+              payload: { data: payload },
+            });
+          }
         } else if (message.status === eStatus.error) {
           setError(message.info || "Unknown error.");
           setLoading(false);
@@ -100,10 +149,12 @@ export default function useStream({
 
     function onStreamStats(message: StreamEvent) {
       console.log("onStreamStats", message);
+      callbacks.current.onStreamStats?.(message);
     }
 
     function onCustomEvent(message: unknown) {
       console.log("onCustomEvent", message);
+      callbacks.current.onCustomEvent?.(message);
     }
 
     const params = createStreamConfig(app, sessionId, config);
@@ -167,7 +218,15 @@ export default function useStream({
         void AppStreamer.terminate();
       }
     };
-  }, [app, sessionId, videoElementId, audioElementId, config, setError]);
+  }, [
+    app,
+    payload,
+    sessionId,
+    videoElementId,
+    audioElementId,
+    config,
+    setError,
+  ]);
 
   const terminate = useCallback(async () => {
     try {

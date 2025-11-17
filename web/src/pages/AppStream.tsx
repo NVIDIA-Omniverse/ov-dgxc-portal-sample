@@ -1,12 +1,46 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
 import { ActionIcon, Box, Flex, Loader, Stack } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
-import { IconAlertTriangle, IconMaximize, IconMinimize, IconX } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconMaximize,
+  IconMinimize,
+  IconX,
+} from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "react-oidc-context";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import Header from "../components/Header";
 import LoaderError from "../components/LoaderError";
 import SessionReportDialog from "../components/SessionReportDialog";
@@ -14,9 +48,15 @@ import { useConfig } from "../hooks/useConfig";
 import useStream from "../hooks/useStream";
 import useStreamEndNotification from "../hooks/useStreamEndNotification";
 import useStreamStart from "../hooks/useStreamStart";
-import { AuthenticationType, getStreamingApp, StreamingApp } from "../state/Apps";
+import {
+  AuthenticationType,
+  getStreamingApp,
+  StreamingApp,
+} from "../state/Apps";
 import { StreamLoader } from "../components/StreamLoader";
 import { StreamError } from "../components/StreamError";
+import { useLatencyIndicator } from "../hooks/useLatencyIndicator";
+import { StreamLatencyIndicator } from "../components/StreamLatencyIndicator";
 
 /**
  * Loads the information about the application with the specified ID
@@ -32,6 +72,12 @@ export default function AppStream() {
   }>();
   const config = useConfig();
   const nucleus = useNucleusSession();
+
+  const location = useLocation();
+
+  const [searchParams] = useSearchParams();
+  // Extract extra payload that could have been passed from a deep-link
+  const payload = searchParams.get("payload") ?? "";
 
   const { isLoading, data, isError, error } = useQuery({
     queryKey: ["streaming-app", appId],
@@ -70,11 +116,8 @@ export default function AppStream() {
   if (data) {
     if (data.authType === AuthenticationType.nucleus) {
       if (!nucleus.established) {
-        return (
-          <Navigate
-            to={`/nucleus/authenticate?redirectAfter=/app/${appId}/sessions/${sessionId}`}
-          />
-        );
+        const to = `${location.pathname}${location.search}`;
+        return <Navigate to={`/nucleus/authenticate?redirectAfter=${to}`} />;
       } else if (!nucleus.accessToken) {
         return (
           <Stack gap={0} style={{ height: "100vh" }}>
@@ -86,7 +129,9 @@ export default function AppStream() {
         );
       }
     }
-    return <AppStreamSession app={data} sessionId={sessionId} />;
+    return (
+      <AppStreamSession app={data} payload={payload} sessionId={sessionId} />
+    );
   }
 
   return (
@@ -101,13 +146,21 @@ export default function AppStream() {
 
 interface StreamSessionProps {
   app: StreamingApp;
+  payload?: string;
   sessionId: string;
 }
 
-function AppStreamSession({ app, sessionId }: StreamSessionProps) {
+function AppStreamSession({ app, payload, sessionId }: StreamSessionProps) {
   const navigate = useNavigate();
-  const stream = useStream({ app, sessionId });
-  const streamStart = useStreamStart(app.id);
+
+  const [rtd, recordRtd] = useLatencyIndicator();
+  const stream = useStream({
+    app,
+    payload,
+    sessionId,
+    onStreamStats: recordRtd,
+  });
+  const streamStart = useStreamStart(app.id, payload);
   useStreamEndNotification(sessionId);
 
   const [fullScreen, setFullScreen] = useState(false);
@@ -180,6 +233,8 @@ function AppStreamSession({ app, sessionId }: StreamSessionProps) {
           gap={"xl"}
           style={{ borderTop: "1px solid #222" }}
         >
+          <StreamLatencyIndicator rtd={rtd} style={{ marginRight: "auto" }} />
+
           <ActionIcon
             variant={"transparent"}
             color={"gray"}

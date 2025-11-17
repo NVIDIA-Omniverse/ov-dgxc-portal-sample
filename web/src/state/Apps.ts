@@ -1,3 +1,26 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
 import semver from "semver";
 import { Config } from "../providers/ConfigProvider";
 import { HttpError } from "../util/Errors";
@@ -180,19 +203,17 @@ export interface GetStreamingAppsParams {
  */
 export async function getStreamingApps({
   config,
-}: GetStreamingAppsParams): Promise<
-  Map<StreamingApp["page"], StreamingApp[]>
-> {
+}: GetStreamingAppsParams): Promise<Map<StreamingApp["page"], Set<StreamingApp>>> {
   const response = await fetch(
     `${config.endpoints.backend}/apps/?status=${AppStatus.Active}`,
   );
   if (response.ok) {
     const body = (await response.json()) as StreamingAppResponseItem[];
 
-    const pages = new Map<StreamingApp["page"], StreamingApp[]>();
+    const pages = new Map<StreamingApp["page"], Set<StreamingApp>>();
     const apps = new Map<StreamingApp["title"], StreamingApp>();
     for (const item of body) {
-      const page = pages.get(item.page) ?? [];
+      const page = pages.get(item.page) ?? new Set<StreamingApp>();
       const version: StreamingAppVersion = {
         id: item.id,
         name: item.version,
@@ -211,19 +232,32 @@ export async function getStreamingApps({
         mediaServer: item.media_server,
         mediaPort: item.media_port,
       };
-      if (semver.compare(item.version, app.latestVersion.name) === 1) {
+
+      if (
+        !semver.valid(app.latestVersion.name) ||
+        (semver.valid(item.version) &&
+          semver.compare(item.version, app.latestVersion.name) === 1)
+      ) {
         app.latestVersion = version;
       }
 
       app.versions.push(version);
       apps.set(app.title, app);
-      page.push(app);
+      page.add(app);
       pages.set(app.page, page);
     }
 
     for (const page of pages.values()) {
       for (const app of page.values()) {
-        app.versions.sort((a, b) => -semver.compare(a.name, b.name));
+        app.versions.sort((a, b) => {
+          if (!semver.valid(a.name)) {
+            return 1;
+          }
+          if (!semver.valid(b.name)) {
+            return -1;
+          }
+          return -semver.compare(a.name, b.name);
+        });
       }
     }
 

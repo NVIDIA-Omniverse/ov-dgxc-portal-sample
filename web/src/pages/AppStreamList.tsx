@@ -1,3 +1,26 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
 import {
   Button,
   Center,
@@ -13,7 +36,7 @@ import { IconDeviceDesktop } from "@tabler/icons-react";
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useAuth } from "react-oidc-context";
-import { Navigate, NavLink, useParams } from "react-router-dom";
+import { Navigate, NavLink, useLocation, useParams, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import LoaderError from "../components/LoaderError";
 import Placeholder from "../components/Placeholder";
@@ -34,8 +57,12 @@ import { StreamError } from "../components/StreamError";
 export default function AppStreamList() {
   const config = useConfig();
   const nucleus = useNucleusSession();
-
+  const location = useLocation();
   const { appId = "" } = useParams<{ appId: string }>();
+
+  const [searchParams] = useSearchParams();
+  // Extract extra payload that could have been passed from a deep-link
+  const payload = searchParams.get("payload") ?? "";
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["streaming-app", appId],
@@ -88,9 +115,10 @@ export default function AppStreamList() {
   }
 
   if (data?.authType === AuthenticationType.nucleus && !nucleus.established) {
+    const href = `${location.pathname}${location.search}`;
     return (
       <Navigate
-        to={`/nucleus/authenticate?redirectAfter=/app/${appId}/sessions`}
+        to={`/nucleus/authenticate?redirectAfter=${href}`}
       />
     );
   }
@@ -106,6 +134,7 @@ export default function AppStreamList() {
         ) : (
           <AppStreamListModal
             appId={appId}
+            payload={payload}
             query={query}
             onSessionCancel={cancelStream}
           />
@@ -117,15 +146,17 @@ export default function AppStreamList() {
 
 function AppStreamListModal({
   appId,
+  payload,
   query,
   onSessionCancel,
 }: {
   appId: string;
+  payload?: string;
   query: UseQueryResult<StreamingSessionPage>;
   onSessionCancel: () => void;
 }) {
   const auth = useAuth();
-  const streamStart = useStreamStart(appId);
+  const streamStart = useStreamStart(appId, payload);
   const startNewSession = useCallbackRef(() => {
     notifications.show({
       id: streamStartNotification,

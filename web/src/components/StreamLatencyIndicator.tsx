@@ -21,37 +21,40 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-import { NavLink as MantineNavLink, Stack, Title } from "@mantine/core";
-import { Link } from "react-router-dom";
-import classes from "./ApplicationPages.module.css";
+import { IconCircleFilled } from "@tabler/icons-react";
+import { Flex, Text, Tooltip } from "@mantine/core";
+import { CSSProperties } from "react";
 
-export interface ApplicationPagesProps {
-  pages: string[];
-  selectedPage?: string;
+export interface StreamLatencyIndicatorProps {
+  /**
+   * Round trip delay in milliseconds.
+   */
+  rtd: number;
+
+  style?: CSSProperties;
 }
 
-export default function ApplicationPages({
-  pages,
-  selectedPage,
-}: ApplicationPagesProps) {
+export function StreamLatencyIndicator({
+  rtd,
+  style,
+}: StreamLatencyIndicatorProps) {
+  const color = getIndicatorColor(rtd);
   return (
-    <Stack className={classes.applicationPages} gap={0}>
-      <Title className={classes.applicationPagesTitle} order={2}>
-        Pages
-      </Title>
-
-      {pages.map((page, index) => (
-        <MantineNavLink
-          key={page}
-          component={Link}
-          active={selectedPage ? selectedPage === page : index === 0}
-          className={classes.applicationPage}
-          color={"gray"}
-          label={page}
-          to={{ search: `?page=${page}` }}
-          title={page}
-        />
-      ))}
-    </Stack>
+    <Flex style={style} align={"center"} gap={"xs"}>
+      <Text size={"xs"}>Connection Latency:</Text>
+      <Tooltip label={`${rtd}ms`} withArrow>
+        <IconCircleFilled color={color} size={16} />
+      </Tooltip>
+    </Flex>
   );
+}
+
+function getIndicatorColor(rtd: number) {
+  if (rtd <= 80) {
+    return "#76b900";
+  }
+  if (rtd <= 200) {
+    return "#ffa903";
+  }
+  return "#f21616";
 }

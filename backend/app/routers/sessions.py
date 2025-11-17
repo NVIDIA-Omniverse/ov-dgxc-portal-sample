@@ -1,3 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: MIT
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+
 import asyncio
 import datetime
 import http.cookies
@@ -201,6 +222,7 @@ async def start_stream(
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(url, headers=headers)
+                content = response.content
 
                 if response.status_code == status.HTTP_200_OK:
                     cookies = response.headers.pop("set-cookie", "")
@@ -218,16 +240,16 @@ async def start_stream(
                         app=app,
                     )
                     session = SessionResponse.model_validate(session_model, from_attributes=True)
+                    content = session.model_dump_json()
 
                     logger.info(f"[{session_model.id}] Started.")
 
                     # Return the session ID as a header for the streaming library
                     response.headers["nvcf-request-id"] = nvcf_request_id.value
 
-                response = Response(content=session.model_dump_json())
+                response = Response(content=content, status_code=response.status_code)
                 if response.status_code == status.HTTP_200_OK:
                     metrics.session_start.add(1, {
-                        "session.id": session_model.id,
                         "session.app": session_model.app_id,
                         "session.user": user.sub,
                         "session.username": user.username,
@@ -327,17 +349,16 @@ async def end_session(session: SessionModel, reason: str) -> Response:
 
 
             duration = session.end_date - session.start_date
-            metric_attrs = {
-                "session.id": session.id,
+
+            attrs = {
                 "session.app": session.app_id,
                 "session.user": session.user_id,
                 "session.username": session.user_name,
-                "session.duration.seconds": duration.seconds,
                 "nvcf.function_id": str(session.function_id),
                 "nvcf.function_version_id": str(session.function_version_id),
             }
-            metrics.session_end.add(1, metric_attrs)
-            metrics.session_duration.record(duration.seconds, metric_attrs)
+            metrics.session_end.add(1, attrs)
+            metrics.session_duration.record(duration.seconds, attrs)
 
         if response.status_code == status.HTTP_404_NOT_FOUND:
             # The session with the specified nvcf_request_id does not exist,

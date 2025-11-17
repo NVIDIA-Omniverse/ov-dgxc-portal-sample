@@ -1,5 +1,17 @@
 # Omniverse on DGX Cloud - Portal Sample Changelog
 
+## Version 1.4.0 - November 2025
+
+- Added 'Deep Link' functionality for sharing a scene and other attributes (e.g., camera position) with other streaming users
+- Added configuration for changing the home page title
+- Update fastapi and starlette dependencies for Python backend
+- Added "DEGRADING" status for NVCF streaming functions
+- Remove `session.id` and `session.duration.seconds` attributes to reduce metric cardinality
+- Invalidate NVCF function status cache when applications are added or removed from the portal
+- Fixed an error that could occur on the home page if displayed applications used non-semantic versioning
+- Added latency indicator for streaming sessions
+- Changed the default aggregation temporality for OpenTelemetry metrics
+
 ## Version 1.3.1 - October 2025
 
 - Fixed an issue where multiple tabs could try to refresh the authentication session simultaneously

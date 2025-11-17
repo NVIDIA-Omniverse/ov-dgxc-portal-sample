@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "license": "SEE LICENSE IN LICENSE.txt",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 3180",
     "build": "tsc && vite build",

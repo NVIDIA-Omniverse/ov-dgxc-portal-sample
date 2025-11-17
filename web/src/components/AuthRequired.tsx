@@ -1,10 +1,41 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
 import { Loader } from "@mantine/core";
 import Cookies from "js-cookie";
 import { ReactNode, useEffect, useState } from "react";
 import { hasAuthParams, useAuth } from "react-oidc-context";
+import { useLocation } from "react-router-dom";
 
 export interface AuthRequiredProps {
   children?: ReactNode;
+}
+
+export interface AuthState {
+  /**
+   * The page where the user should be redirected back to after authentication.
+   */
+  redirectTo?: string;
 }
 
 /**
@@ -13,6 +44,7 @@ export interface AuthRequiredProps {
  */
 export default function AuthRequired({ children }: AuthRequiredProps) {
   const auth = useAuth();
+  const location = useLocation();
   const [hasTriedSignIn, setHasTriedSignIn] = useState(false);
 
   useEffect(() => {
@@ -30,8 +62,11 @@ export default function AuthRequired({ children }: AuthRequiredProps) {
       auth.events.addSilentRenewError(handleError);
 
       setHasTriedSignIn(true);
+
+      const redirectTo = `${location.pathname}${location.search}`;
+      const state: AuthState = { redirectTo };
       void auth
-        .signinSilent()
+        .signinSilent({ state })
         .then((user) => {
           if (user) {
             if (user.id_token) {
@@ -47,19 +82,19 @@ export default function AuthRequired({ children }: AuthRequiredProps) {
           } else {
             Cookies.remove("id_token");
             Cookies.remove("access_token");
-            return auth.signinRedirect();
+            return auth.signinRedirect({ state });
           }
         })
         .catch((error) => {
           console.warn(error);
-          return auth.signinRedirect();
+          return auth.signinRedirect({ state });
         });
 
       return () => {
         auth.events.removeSilentRenewError(handleError);
       };
     }
-  }, [auth, hasTriedSignIn]);
+  }, [auth, location, hasTriedSignIn]);
 
   if ((auth.isLoading && !auth.isAuthenticated) || hasTriedSignIn) {
     return <Loader m={"md"} />;

@@ -22,6 +22,9 @@ data:
         "maxTtl": {{ .Values.config.sessionTtl }},
         "sessionEndNotificationTime": {{ .Values.config.sessionEndNotificationTime }},
         "sessionEndNotificationDuration": {{ .Values.config.sessionEndNotificationDuration }}
+      },
+      "userInterface": {
+        "title": "{{ .Values.config.userInterface.title }}"
       }
     }
 
