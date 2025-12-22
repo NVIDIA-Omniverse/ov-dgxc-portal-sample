@@ -120,6 +120,7 @@ export default function useStream({
           video.play().catch((error) => {
             setError(error as Error);
           });
+          video.focus();
 
           setLoading(false);
           hideNotification(streamStartNotification);

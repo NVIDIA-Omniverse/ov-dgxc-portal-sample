@@ -1,16 +1,32 @@
 # Omniverse on DGX Cloud - Portal Sample Changelog
 
+## Version 1.4.1 - January 2026
+
+- Hide latency indicator if latency data is not available
+- Update `GET /api/pages/` endpoint to return pages submitted only to `PUT /api/apps/`
+- Display applications with degrading status in addition to active applications
+- Fixed an issue where session timeout checks could be calculated incorrectly if the host/system runs using a non-UTC timezone
+- Report OpenTelemetry metrics for the following:
+	- Number of GPUs assigned (quota) to the NGC organization
+	- Number of GPUs currently assigned to active NVCF functions
+- Set application name as the browser tab title when stream starts
+- Force the focus of the viewport when stream starts
+- Update `@nvidia/omniverse-webrtc-streaming-library` to 5.17.0
+
 ## Version 1.4.0 - November 2025
 
 - Added 'Deep Link' functionality for sharing a scene and other attributes (e.g., camera position) with other streaming users
 - Added configuration for changing the home page title
-- Update fastapi and starlette dependencies for Python backend
-- Added "DEGRADING" status for NVCF streaming functions
+- Update ``fastapi`` and ``starlette`` dependencies for Python backend
+- Added ``DEGRADING`` status for NVCF streaming functions
 - Remove `session.id` and `session.duration.seconds` attributes to reduce metric cardinality
 - Invalidate NVCF function status cache when applications are added or removed from the portal
 - Fixed an error that could occur on the home page if displayed applications used non-semantic versioning
-- Added latency indicator for streaming sessions
 - Changed the default aggregation temporality for OpenTelemetry metrics
+- Added latency indicator for streaming sessions\*
+
+**\*Note:** There may be a slight delay on the latency indicator reporting proper status while users are joining sessions. *(This will be enhanced in a future update.)*
+
 
 ## Version 1.3.1 - October 2025
 
@@ -20,6 +36,7 @@
 - Add "DEGRADED" status for NVCF streaming functions
 - Update `@nvidia/omniverse-webrtc-streaming-library` to 5.15.5
 
+
 ## Version 1.3.0 - October 2025
 
 - Fixed an issue where WebSocket endpoints couldn't be used with large headers
@@ -28,6 +45,7 @@
 - Added `/api/pages/` endpoint that returns the page order for the sidebar
 - Removed unused `image` field for applications
 - Update Python container to 3.13
+
 
 ## Version 1.2.0 - August 2025
 
@@ -50,6 +68,7 @@
 - Add **media_server** and **media_port** for streaming functions
 - Stop abandoned sessions (e.g., user created a session but chose not to connect or failed to connect)
 - Disable Sessions link when users are on the Sessions page
+
 
 **NOTE:**  This update to the Portal Sample introduces a change when integrating with an IDP. The Portal administrator needs to configure the `config.auth.metadataUri` with the IdP URI that points to OpenID Connect Discovery. This URL returns all necessary information for the Portal, including the jwks URI and userinfo URI.
 

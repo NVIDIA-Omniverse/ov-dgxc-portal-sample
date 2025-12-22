@@ -19,6 +19,10 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from fastapi.encoders import jsonable_encoder
+
+from app.models import PublishedApp, PublishedAppModel, PublishedPageModel
+
 
 async def test_set_pages(client):
     data = [
@@ -65,3 +69,33 @@ async def test_update_pages(client):
     response = await client.get("/pages/")
     assert response.status_code == 200
     assert response.json() == data
+
+
+async def test_get_pages_returns_pages_from_published_apps(client):
+    app1 = jsonable_encoder(
+        PublishedApp(
+            slug="app-1",
+            function_id="20e5086a-832a-43a6-87c9-6784e2d1e4bd",
+            function_version_id="ba4e628b-975b-4e28-9e06-492016a94ec7",
+            title="App 1",
+            description="App 1",
+            version="1.0",
+            icon="https://example.com/icon.png",
+            page="Unordered Page",
+            category="Test",
+            product_area="Test",
+        )
+    )
+    await PublishedAppModel.create(**app1, id="app-1:1.0")
+
+    response = await client.get("/pages/")
+    assert response.status_code == 200
+    assert response.json() == [{"name": "Unordered Page", "order": None}]
+
+
+async def test_get_pages_includes_pages_without_apps(client):
+    await PublishedPageModel.create(name="Empty Page", order=1)
+
+    response = await client.get("/pages/")
+    assert response.status_code == 200
+    assert response.json() == [{"name": "Empty Page", "order": 1}]

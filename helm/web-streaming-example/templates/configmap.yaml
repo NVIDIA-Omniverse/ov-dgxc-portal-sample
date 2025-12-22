@@ -70,6 +70,8 @@ data:
     nvcf_control_endpoint = "{{ .Values.nvcf.controlEndpoint }}"
     nvcf_signaling_endpoint = "{{ .Values.nvcf.signalingEndpoint }}"
     nvcf_cache_ttl = {{ .Values.nvcf.cacheTtl }}
+    ngc_endpoint = "{{ .Values.nvcf.ngcEndpoint }}"
+    ngc_org = "{{ .Values.nvcf.ngcOrg }}"
 
     session_ttl = {{ .Values.config.sessionTtl }}
     session_watch_interval = {{ .Values.config.sessionWatchInterval }}

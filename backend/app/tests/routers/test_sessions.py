@@ -24,6 +24,7 @@ import datetime
 import uuid
 from contextlib import asynccontextmanager
 
+import httpx
 import pytest
 import uvicorn
 import websockets
@@ -61,16 +62,20 @@ def session_timeout():
     session_watch_interval = settings.session_watch_interval
     settings.session_watch_interval = 1
 
+    session_idle_timeout = settings.session_idle_timeout
+    settings.session_idle_timeout = 1
+
     yield settings.session_ttl
     settings.session_ttl = session_ttl
     settings.session_watch_interval = session_watch_interval
+    settings.session_idle_timeout = session_idle_timeout
 
 
 @pytest.fixture
 def nvcf_server(nvcf_endpoint):
     @asynccontextmanager
-    async def start_nvcf(accept):
-        async with serve(accept, "localhost", 12345):
+    async def start_nvcf(accept, *, process_request = None):
+        async with serve(accept, "localhost", 12345, process_request=process_request):
             yield
 
     return start_nvcf
@@ -101,6 +106,7 @@ async def websocket_server(database):
 @pytest.fixture
 def create_session():
     count = 0
+    sentinel = object()
 
     async def create(
         session_id: str = None,
@@ -108,12 +114,26 @@ def create_session():
         app: PublishedAppModel | None = None,
         user_id: str = "omniverse",
         nvcf_request_id: str = SESSION_NVCF_REQUEST_ID,
+        start_date: datetime.datetime | None = sentinel,
+        end_date: datetime.datetime | None = sentinel,
     ):
         nonlocal count
         count += 1
 
         if session_id is None:
             session_id = str(uuid.uuid4())
+
+        if start_date is sentinel:
+            start_date = (
+                datetime.datetime.now(datetime.timezone.utc) +
+                datetime.timedelta(seconds=count)
+            )
+
+        if end_date is sentinel:
+            end_date = (
+                datetime.datetime.now(datetime.timezone.utc) +
+                datetime.timedelta(seconds=count)
+            )
 
         return await SessionModel.create(
             id=session_id,
@@ -123,12 +143,8 @@ def create_session():
             user_id=user_id,
             user_name=user_id,
             status=status,
-            start_date=(
-                datetime.datetime.now() + datetime.timedelta(seconds=count)
-            ),
-            end_date=(
-                datetime.datetime.now() + datetime.timedelta(seconds=count)
-            ),
+            start_date=start_date,
+            end_date=end_date,
             app=app,
         )
 
@@ -223,6 +239,27 @@ async def test_session_start_too_many_sessions(nvcf_endpoint, respx_mock, user_c
     assert nvcf.call_count == settings.max_app_instances_count
 
 
+async def test_session_start_unknown_app(
+    user_client
+):
+    response = await user_client.post("/sessions/", params={"app_id": "test"})
+    assert response.status_code == 404
+    assert response.text == "Application not found."
+
+
+async def test_session_start_timeout(
+    nvcf_endpoint, respx_mock, user_client, create_app
+):
+    nvcf_endpoint_http = construct_nvcf_endpoint()
+    nvcf = respx_mock.post(nvcf_endpoint_http).mock(side_effect=httpx.TimeoutException)
+    
+    app = await create_app()
+    response = await user_client.post("/sessions/", params={"app_id": str(app.id)})
+    assert response.status_code == 408
+    assert response.text == "This could be caused by network congestion or no GPUs available. Please try again."
+    assert nvcf.called
+
+
 @freeze_time("2024-09-03 23:00:00")
 async def test_session_sign_in(
     nvcf_server, websocket_server, cookies
@@ -278,6 +315,49 @@ async def test_session_sign_in_server_close_abnormally(
             function_version_id=FUNCTION_VERSION_ID,
         )
         assert session.status == SessionStatus.idle
+
+
+async def test_session_sign_in_invalid_status(
+    nvcf_server, websocket_server, cookies
+):
+    async def process_request(connection: ServerConnection, request: websockets.server.Request):
+        return connection.respond(
+            status=404,
+            text="Test error.",
+        )
+
+    async def accept(websocket: ServerConnection):
+        await websocket.close()
+
+    async with nvcf_server(accept, process_request=process_request):
+        with pytest.raises(websockets.exceptions.ConnectionClosedError) as err:
+            async with connect(
+                SESSION_URL, additional_headers={"Cookie": cookies}
+            ) as ws:
+                await ws.recv()
+
+        assert err.value.rcvd.code == 3001
+        assert err.value.rcvd.reason == "Test error."
+
+
+async def test_session_sign_in_timeout(
+    nvcf_server, websocket_server, cookies
+):
+    async def process_request(connection: ServerConnection, request: websockets.server.Request):
+        await asyncio.sleep(120)
+
+    async def accept(websocket: ServerConnection):
+        await websocket.close()
+
+    async with nvcf_server(accept, process_request=process_request):
+        with pytest.raises(websockets.exceptions.ConnectionClosedError) as err:
+            async with connect(
+                SESSION_URL, additional_headers={"Cookie": cookies}
+            ) as ws:
+                await ws.recv()
+
+        assert err.value.rcvd.code == 3008
+        assert err.value.rcvd.reason == "Failed to connect a streaming session with a timeout -- try again later."
 
 
 async def test_session_sign_in_client_close_abnormally(
@@ -393,10 +473,33 @@ async def test_session_sign_in_not_found(
         function_id=FUNCTION_ID,
         function_version_id=FUNCTION_VERSION_ID,
     )
-    await session.delete()
+    await PublishedAppModel.filter(id=session.app_id).delete()
 
     async with nvcf_server(accept):
         with pytest.raises(websockets.exceptions.ConnectionClosedError) as err:
+            async with connect(
+                SESSION_URL, additional_headers={"Cookie": cookies}
+            ) as ws:
+                await ws.recv()
+
+        assert err.value.rcvd.code == 3006
+        assert err.value.rcvd.reason == "Application associated with this session is no longer available."
+
+
+async def test_session_sign_in_app_no_longer_available(nvcf_server, websocket_server, user_token, cookies):
+    async def accept(websocket: ServerConnection):
+        await websocket.close(code=1011, reason="Test error.")
+
+    async with nvcf_server(accept):
+        session = await SessionModel.get(
+            function_id=FUNCTION_ID,
+            function_version_id=FUNCTION_VERSION_ID,
+        )
+        session.status = SessionStatus.stopped
+        await session.save()
+
+        with pytest.raises(
+            websockets.exceptions.ConnectionClosedError) as err:
             async with connect(
                 SESSION_URL, additional_headers={"Cookie": cookies}
             ) as ws:
@@ -452,7 +555,7 @@ async def test_check_session_that_belongs_to_another_user(client, create_session
 
 
 async def test_check_stopped_session(client, create_session):
-    session = await create_session(status=SessionStatus.stopped)
+    await create_session(session_id=SESSION_ID, status=SessionStatus.stopped)
 
     response = await client.head(SESSION_PATH)
     assert response.status_code == 404
@@ -460,7 +563,10 @@ async def test_check_stopped_session(client, create_session):
 
 async def test_check_expired_session(client, create_session):
     session = await create_session(session_id=SESSION_ID, status=SessionStatus.idle)
-    session.end_date = datetime.datetime.now() - datetime.timedelta(seconds=settings.session_ttl + 10)
+    session.end_date = (
+        datetime.datetime.now(datetime.timezone.utc) -
+        datetime.timedelta(seconds=settings.session_ttl + 10)
+    )
     await session.save()
 
     response = await client.head(SESSION_PATH)
@@ -663,6 +769,32 @@ async def test_get_sessions_pagination_filtered_by_status(
         assert session_data["id"] == session.id
 
 
+async def test_get_session(client, create_session):
+    session = await create_session()
+
+    response = await client.get(f"/sessions/{session.id}")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["id"] == session.id
+    assert data["status"] == session.status
+    assert data["user_id"] == session.user_id
+    assert data["function_id"] == str(session.function_id)
+    assert data["function_version_id"] == str(session.function_version_id)
+
+
+async def test_get_session_not_found(client):
+    response = await client.get(f"/sessions/test")
+    assert response.status_code == 404
+
+
+async def test_get_session_that_belongs_to_another_user(user_client, create_session):
+    session = await create_session(user_id="other-user")
+
+    response = await user_client.get(f"/sessions/{session.id}")
+    assert response.status_code == 404
+
+
 async def test_stop_session(
     nvcf_server, websocket_server, user_client, user_token,
     respx_mock, cookies
@@ -806,6 +938,39 @@ async def test_session_timeout(
     assert nvcf.called
 
 
+async def test_session_stopped_after_being_idle(
+    session_timeout, client, create_session
+):
+    disconnected_session = await create_session(
+        status=SessionStatus.idle,
+        end_date=(
+            datetime.datetime.now(datetime.timezone.utc) -
+            datetime.timedelta(seconds=session_timeout)
+        ),
+    )
+    await asyncio.sleep(session_timeout * 2)
+
+    await disconnected_session.refresh_from_db()
+    assert disconnected_session.status == SessionStatus.stopped
+
+
+async def test_session_stop_orphaned_sessions(
+    session_timeout, client, create_session
+):
+    orphaned_session = await create_session(
+        status=SessionStatus.idle,
+        start_date=(
+            datetime.datetime.now(datetime.timezone.utc) -
+            datetime.timedelta(seconds=session_timeout)
+        ),
+        end_date=None,
+    )
+    await asyncio.sleep(session_timeout)
+
+    await orphaned_session.refresh_from_db()
+    assert orphaned_session.status == SessionStatus.stopped
+
+
 async def test_terminate_session_is_unauthorized_for_anonymous_user(client):
     del client.cookies["id_token"]
 
@@ -825,3 +990,36 @@ async def test_terminate_session_returns_404_if_session_belongs_to_another_user(
 async def test_terminate_session_not_found(client):
     response = await client.delete("/sessions/test")
     assert response.status_code == 404
+
+
+async def test_terminate_session_no_longer_available(client, create_session, respx_mock):
+    nvcf = respx_mock.delete(construct_nvcf_endpoint()).respond(
+        status_code=404
+    )
+
+    session = await create_session()
+    response = await client.delete(f"/sessions/{session.id}")
+    assert response.status_code == 204
+
+    await session.refresh_from_db()
+    assert session.status == SessionStatus.stopped
+
+    assert nvcf.called
+
+
+async def test_terminate_stopped_session(client, create_session):
+    session = await create_session(status=SessionStatus.stopped)
+
+    response = await client.delete(f"/sessions/{session.id}")
+    assert response.status_code == 204
+
+
+async def test_terminate_session_timeout(client, create_session, respx_mock):
+    nvcf = respx_mock.delete(construct_nvcf_endpoint()).mock(side_effect=httpx.TimeoutException)
+
+    session = await create_session()
+
+    response = await client.delete(f"/sessions/{session.id}")
+    assert response.status_code == 408
+    assert response.text == "Failed to terminate session with a timeout -- try again later."
+    assert nvcf.called

@@ -155,13 +155,12 @@ _PublishedApp: Type[PydanticModel] = pydantic_model_creator(
     PublishedAppModel,
     name="PublishedApp",
     exclude=("id",),
-    model_config=ConfigDict(extra="allow")
 )
 
 
 class PublishedApp(_PublishedApp):
-    media_server: Optional[str] = None
-    media_port: Optional[int] = None
+    media_server: Optional[str] = pydantic.Field(default=None, examples=[None])
+    media_port: Optional[int] = pydantic.Field(default=None, examples=[None])
 
 
 class PublishedAppResponse(PublishedApp):

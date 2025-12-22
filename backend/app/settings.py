@@ -56,6 +56,12 @@ class Settings:
     """The endpoint used by the backend to talk to NVCF API."""
     nvcf_control_endpoint: str = "https://api.nvcf.nvidia.com"
 
+    """The endpoint used by the backend to get information about the NGC org."""
+    ngc_endpoint: str = "https://api.ngc.nvidia.com"
+
+    """NVIDIA Cloud Account Number of the NGC org."""
+    ngc_org: str | None = None
+
     """
     The endpoint used by the backend to 
     connect to NVCF functions with WebSockets.

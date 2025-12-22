@@ -38,6 +38,10 @@ export function StreamLatencyIndicator({
   rtd,
   style,
 }: StreamLatencyIndicatorProps) {
+  if (!rtd) {
+    return null;
+  }
+
   const color = getIndicatorColor(rtd);
   return (
     <Flex style={style} align={"center"} gap={"xs"}>

@@ -32,7 +32,23 @@ RUN --mount=type=secret,id=npmrc,target=/root/.npmrc npm install --ignore-script
 COPY . .
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:bookworm AS serve
+FROM nginxinc/nginx-unprivileged:stable-bookworm AS serve
+
+# Switch to root to perform package updates
+USER root
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    gpgv \
+    libpng16-16 \
+    libpam-modules \
+    libpam-runtime \
+    libpam0g && \
+    rm -rf /var/lib/apt/lists/*
+
+# Switch back to the original unprivileged user (UID 101)
+USER 101
+
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY ATTRIBUTIONS.md .
 

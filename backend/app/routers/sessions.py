@@ -63,8 +63,10 @@ async def watch_session_timeout():
 
         sessions = await SessionModel.filter(
             status__not=str(SessionStatus.stopped.value),
-            start_date__lte=datetime.datetime.now() - datetime.timedelta(
-                seconds=settings.session_ttl),
+            start_date__lte=(
+                datetime.datetime.now(datetime.timezone.utc) -
+                datetime.timedelta(seconds=settings.session_ttl)
+            ),
         ).prefetch_related("app")
 
         logger.debug(f"Found {len(sessions)} timed-outed sessions.")
@@ -80,14 +82,16 @@ async def watch_idle_sessions():
 
         disconnected_sessions = await SessionModel.filter(
             status=SessionStatus.idle.value,
-            end_date__lte=datetime.datetime.now() - datetime.timedelta(
-                seconds=settings.session_idle_timeout
+            end_date__lte=(
+                datetime.datetime.now(datetime.timezone.utc) -
+                datetime.timedelta(seconds=settings.session_idle_timeout)
             )
         )
         orphaned_sessions = await SessionModel.filter(
             status=SessionStatus.idle.value,
-            start_date__lte=datetime.datetime.now() - datetime.timedelta(
-                seconds=settings.session_idle_timeout
+            start_date__lte=(
+                datetime.datetime.now(datetime.timezone.utc) -
+                datetime.timedelta(seconds=settings.session_idle_timeout)
             ),
             end_date=None
         )
@@ -122,17 +126,16 @@ async def check_session(
     if session is None:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
 
-    if not settings.unsafe_disable_auth and session.user_id != user.sub:
-        # The session belongs to another user, return HTTP404.
-        return Response(status_code=status.HTTP_404_NOT_FOUND)
-
     if session.status == SessionStatus.stopped:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
 
     if (
         session.status == SessionStatus.idle and
         session.end_date is not None and
-        session.end_date.replace(tzinfo=None) <= datetime.datetime.now() - datetime.timedelta(seconds=settings.session_ttl)
+        session.end_date.replace(tzinfo=datetime.timezone.utc) <= (
+            datetime.datetime.now(datetime.timezone.utc) -
+            datetime.timedelta(seconds=settings.session_ttl)
+        )
     ):
         # The session has expired, update its status to stopped.
         session.status = SessionStatus.stopped
@@ -450,6 +453,7 @@ async def connect_to_stream(
             code=3006,
             reason="Application associated with this session is no longer available."
         )
+        return
 
     app: PublishedAppModel = session.app
 
@@ -568,9 +572,8 @@ async def connect_to_stream(
             # Cancel all tasks that didn't raise a close exception
             for task in pending:
                 task.cancel()
-
     except InvalidStatus as error:
-        code, reason = 1006, error.response.reason_phrase
+        code, reason = 3001, error.response.body.decode()
         logger.error(f"[{session.id}] Disconnected with invalid status: {error.response.status_code} -- {error.response.body}.\nHeaders:\n{error.response.headers}")
     except WebSocketDisconnect as disconnect:
         # Handle exceptions that can be raised during the handshake

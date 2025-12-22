@@ -6,3 +6,5 @@
 |sessions.start.count| Total number of started streaming sessions|
 |sessions.end.count| Total number of ended streaming sessions|
 |sessions.duration| Session duration (expressed in seconds)|
+|gpu.total.count| Total number of GPUs available for the NGC organization|
+|gpu.active.count| GPUs currently assigned to active NVCF functions.|

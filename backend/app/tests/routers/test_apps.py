@@ -19,8 +19,6 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from unittest.mock import AsyncMock
-
 import pytest
 from asgi_lifespan import LifespanManager
 from fastapi.encoders import jsonable_encoder
@@ -29,20 +27,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import api
 from app.models import PublishedApp, PublishedAppModel, NvcfFunctionStatus
-
-
-@pytest.fixture(autouse=True)
-def mock_get_nvcf_functions(mocker):
-    mock: AsyncMock = mocker.patch("app.routers.apps.get_nvcf_functions")
-    mock.return_value = {
-        (published_app["function_id"], published_app["function_version_id"]): {
-            "id": published_app["function_id"],
-            "versionId": published_app["function_version_id"],
-            "name": published_app["slug"],
-            "status": NvcfFunctionStatus.active,
-        }
-    }
-    yield mock
+from app.settings import settings
 
 
 published_app = jsonable_encoder(
@@ -59,6 +44,38 @@ published_app = jsonable_encoder(
         product_area="Omniverse",
     )
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_nvcf_functions(respx_mock):
+    route = respx_mock.get(
+        f"{settings.nvcf_control_endpoint}/v2/nvcf/functions"
+    ).respond(
+        json={
+            "functions": [
+                {
+                    "id": published_app["function_id"],
+                    "versionId": published_app["function_version_id"],
+                    "name": published_app["slug"],
+                    "status": NvcfFunctionStatus.active.value,
+                },
+                {
+                    "id": "2525142a-9caa-4536-9541-101bf8ae51ee",
+                    "versionId": published_app["function_version_id"],
+                    "name": "python",
+                    "status": NvcfFunctionStatus.active.value,
+                },
+                {
+                    "id": published_app["function_id"],
+                    "versionId": "ef6c921d-e210-4474-9984-27b69b3092d2",
+                    "name": "python",
+                    "status": NvcfFunctionStatus.active.value,
+                },
+            ]
+        }
+    )
+    yield route
+
 
 published_app_response = {
     **published_app,
@@ -245,6 +262,38 @@ async def test_delete_app_is_denied_for_non_admin_user(client, user_token):
         "/apps/python:3.12",
     )
     assert response.status_code == 403
+
+
+@freeze_time("2024-06-17 17:00:00")
+async def test_get_app_unknown_status_when_not_in_nvcf(client, respx_mock):
+    from app.nvcf import nvcf_function_cache
+
+    nvcf_function_cache.clear()
+    respx_mock.get(
+        f"{settings.nvcf_control_endpoint}/v2/nvcf/functions"
+    ).respond(json={"functions": []})
+
+    await PublishedAppModel.create(**published_app, id="python:3.12")
+
+    response = await client.get("/apps/python:3.12")
+    assert response.status_code == 200
+    assert response.json()["status"] == NvcfFunctionStatus.unknown.value
+
+
+@freeze_time("2024-06-17 17:00:00")
+async def test_get_app_handles_nvcf_error(client, respx_mock):
+    from app.nvcf import nvcf_function_cache
+
+    nvcf_function_cache.clear()
+    respx_mock.get(
+        f"{settings.nvcf_control_endpoint}/v2/nvcf/functions"
+    ).respond(status_code=500)
+
+    await PublishedAppModel.create(**published_app, id="python:3.12")
+
+    response = await client.get("/apps/python:3.12")
+    assert response.status_code == 200
+    assert response.json()["status"] == NvcfFunctionStatus.unknown.value
 
 
 @freeze_time("2024-06-17 17:00:00")

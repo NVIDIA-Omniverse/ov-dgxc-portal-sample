@@ -26,7 +26,7 @@ from fastapi import APIRouter
 from fastapi.params import Depends
 
 from app.auth import authenticated_only, admin_only
-from app.models import PublishedPageModel, PublishedPage
+from app.models import PublishedAppModel, PublishedPageModel, PublishedPage
 
 router = APIRouter()
 logger = logging.getLogger("uvicorn.error")
@@ -41,11 +41,24 @@ logger = logging.getLogger("uvicorn.error")
     response_model=List[PublishedPage],
 )
 async def get_pages():
-    pages = await PublishedPageModel.all()
-    return [
-        await PublishedPage.from_tortoise_orm(page)
-        for page in pages
-    ]
+    app_page_names = set(
+        await PublishedAppModel.filter(page__not_isnull=True)
+        .exclude(page="")
+        .distinct()
+        .values_list("page", flat=True)
+    )
+
+    page_models = await PublishedPageModel.all()
+    page_order_map = {page.name: page.order for page in page_models}
+
+    all_page_names = app_page_names | set(page_order_map.keys())
+
+    result = sorted([
+        {"name": name, "order": page_order_map.get(name)}
+        for name in all_page_names
+    ], key=lambda x: x["order"] or 0)
+
+    return result
 
 
 @router.put(
@@ -65,4 +78,3 @@ async def set_pages(pages: List[PublishedPage]):
             defaults=page.model_dump(exclude_unset=True)
         )
     return await get_pages()
-

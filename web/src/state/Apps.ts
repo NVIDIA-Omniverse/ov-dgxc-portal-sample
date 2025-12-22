@@ -77,6 +77,12 @@ enum AppStatus {
   Active = "ACTIVE",
 
   /**
+   * The function is active but has fewer instances available
+   * than defined minimum.
+   */
+  Degrading = "DEGRADING",
+
+  /**
    * The function is deployed but currently inactive.
    * Must be activated before invoked.
    */
@@ -203,16 +209,23 @@ export interface GetStreamingAppsParams {
  */
 export async function getStreamingApps({
   config,
-}: GetStreamingAppsParams): Promise<Map<StreamingApp["page"], Set<StreamingApp>>> {
-  const response = await fetch(
-    `${config.endpoints.backend}/apps/?status=${AppStatus.Active}`,
-  );
+}: GetStreamingAppsParams): Promise<
+  Map<StreamingApp["page"], Set<StreamingApp>>
+> {
+  const response = await fetch(`${config.endpoints.backend}/apps/`);
   if (response.ok) {
     const body = (await response.json()) as StreamingAppResponseItem[];
 
     const pages = new Map<StreamingApp["page"], Set<StreamingApp>>();
     const apps = new Map<StreamingApp["title"], StreamingApp>();
     for (const item of body) {
+      if (
+        item.status !== AppStatus.Active &&
+        item.status !== AppStatus.Degrading
+      ) {
+        continue;
+      }
+
       const page = pages.get(item.page) ?? new Set<StreamingApp>();
       const version: StreamingAppVersion = {
         id: item.id,

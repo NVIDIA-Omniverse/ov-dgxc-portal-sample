@@ -22,7 +22,7 @@
  */
 
 import { ActionIcon, Box, Flex, Loader, Stack } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useDocumentTitle } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
 import {
@@ -165,6 +165,8 @@ function AppStreamSession({ app, payload, sessionId }: StreamSessionProps) {
 
   const [fullScreen, setFullScreen] = useState(false);
   const videoElement = useRef<HTMLVideoElement>(null);
+
+  useDocumentTitle(app.title);
 
   const [reportOpened, { toggle: toggleReport, close: closeReport }] =
     useDisclosure();
