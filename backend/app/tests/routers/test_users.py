@@ -19,7 +19,30 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from .apps import router as apps_router
-from .sessions import router as sessions_router
-from .pages import router as pages_router
-from .users import router as users_router
+
+async def test_get_current_user_as_admin(client):
+    response = await client.get("/users/me")
+    assert response.status_code == 200
+    assert response.json() == {"is_admin": True}
+
+
+async def test_get_current_user_as_regular_user(user_client):
+    response = await user_client.get("/users/me")
+    assert response.status_code == 200
+    assert response.json() == {"is_admin": False}
+
+
+async def test_get_current_user_unauthenticated(database):
+    from asgi_lifespan import LifespanManager
+    from httpx import ASGITransport, AsyncClient
+    from app.main import api
+
+    async with LifespanManager(api):
+        transport = ASGITransport(api)
+        async with AsyncClient(
+            base_url="http://test",
+            transport=transport,
+        ) as unauthenticated_client:
+            response = await unauthenticated_client.get("/users/me")
+            assert response.status_code == 401
+

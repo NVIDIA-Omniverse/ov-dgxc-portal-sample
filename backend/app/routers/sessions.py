@@ -475,6 +475,9 @@ async def connect_to_stream(
     code, reason = 1000, None
     try:
         session.status = SessionStatus.connecting
+
+        # Reset the end date if user reconnects to the session
+        session.end_date = None
         await session.save()
 
         query_params = {**websocket.query_params}

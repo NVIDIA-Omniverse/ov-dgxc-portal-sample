@@ -49,6 +49,7 @@ export default function Home() {
   } = useQuery<Map<StreamingApp["page"], Set<StreamingApp>>>({
     queryKey: ["get-apps"],
     queryFn: async () => getStreamingApps({ config }),
+    refetchInterval: 30000,
   });
 
   const {

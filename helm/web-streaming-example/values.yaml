@@ -46,7 +46,7 @@ nvcf:
   signalingEndpoint: "wss://grpc.nvcf.nvidia.com"
 
   # Number of seconds to cache data pulled from NVCF API
-  cacheTtl: 300
+  cacheTtl: 30
 
   # The endpoint used by the backend to get information about the NGC org.
   ngcEndpoint: "https://api.ngc.nvidia.com"

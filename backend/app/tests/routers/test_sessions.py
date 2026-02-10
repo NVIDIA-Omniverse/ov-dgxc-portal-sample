@@ -297,6 +297,56 @@ async def test_session_sign_in(
             assert str(session.end_date) == "2024-09-03 23:00:00+00:00"
 
 
+@freeze_time("2024-09-03 23:00:00")
+async def test_session_sign_in_reconnect(
+    nvcf_server, websocket_server, cookies
+):
+    async def accept(websocket: ServerConnection):
+        await websocket.send("SYN")
+        recv = await websocket.recv()
+        if recv == "ACK":
+            await websocket.send("SYN ACK")
+
+    async with nvcf_server(accept):
+        async with connect(
+            SESSION_URL, additional_headers={"Cookie": cookies}
+        ) as ws:
+            msg = await ws.recv()
+            assert msg == "SYN"
+
+            await ws.send("ACK")
+            msg = await ws.recv()
+            assert msg == "SYN ACK"
+
+            await ws.close()
+
+        async with connect(
+            SESSION_URL, additional_headers={"Cookie": cookies}
+        ) as ws:
+            msg = await ws.recv()
+            assert msg == "SYN"
+
+            await ws.send("ACK")
+            msg = await ws.recv()
+            assert msg == "SYN ACK"
+
+            session = await SessionModel.get(
+                function_id=FUNCTION_ID,
+                function_version_id=FUNCTION_VERSION_ID,
+            )
+            assert session.id is not None
+            assert session.status == SessionStatus.active
+            assert session.end_date is None
+
+            await ws.close()
+            session = await SessionModel.get(
+                function_id=FUNCTION_ID,
+                function_version_id=FUNCTION_VERSION_ID,
+            )
+            assert session.status == SessionStatus.idle
+            assert str(session.end_date) == "2024-09-03 23:00:00+00:00"
+
+
 async def test_session_sign_in_server_close_abnormally(
     nvcf_server, websocket_server, cookies
 ):

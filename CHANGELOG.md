@@ -1,5 +1,13 @@
 # Omniverse on DGX Cloud - Portal Sample Changelog
 
+## Version 1.4.2 - March 2026
+
+- Display degraded applications on the main page with disabled state, warning indicator, and per-version status tracking
+- Added `GET /users/me` endpoint that returns information about the currently authenticated user
+- Allow system administrators to copy the NVCF Request ID of a session from the sessions page
+- Reset the end date if a user reconnects to a streaming session
+- Added OpenAPI tags for all backend endpoints
+
 ## Version 1.4.1 - January 2026
 
 - Hide latency indicator if latency data is not available

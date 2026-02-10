@@ -34,7 +34,7 @@ from tortoise.contrib.fastapi import RegisterTortoise
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
 from app.api_keys import api_keys
-from app.routers import apps_router, sessions_router, pages_router
+from app.routers import apps_router, sessions_router, pages_router, users_router
 from app.routers.sessions import watch_session_timeout, watch_idle_sessions
 from app.settings import settings
 
@@ -112,9 +112,10 @@ async def integrityerror_exception_handler(
     )
 
 
-api.include_router(apps_router)
-api.include_router(sessions_router)
-api.include_router(pages_router)
+api.include_router(apps_router, tags=["apps"])
+api.include_router(sessions_router, tags=["sessions"])
+api.include_router(pages_router, tags=["pages"])
+api.include_router(users_router, tags=["users"])
 
 
 def start():
@@ -143,8 +144,7 @@ def migrations():
 
         try:
             async with aerich.Command(
-                tortoise_config=config,
-                app="models"
+                tortoise_config=config, app="models"
             ) as command:
                 await command.upgrade()
         finally:

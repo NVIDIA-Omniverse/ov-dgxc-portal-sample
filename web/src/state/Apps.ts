@@ -41,6 +41,11 @@ export interface StreamingApp {
   authType?: AuthenticationType;
 
   /**
+   * The current status of this application on NVCF.
+   */
+  status?: AppStatus;
+
+  /**
    * Specifies a hostname for the private endpoint for streaming.
    */
   mediaServer?: string;
@@ -65,12 +70,13 @@ export interface StreamingAppVersion {
   name: string;
   functionId: string;
   functionVersionId: string;
+  status?: AppStatus;
 }
 
 /**
  * Represents a status of an NVCF function.
  */
-enum AppStatus {
+export enum AppStatus {
   /**
    * The function is active and can be invoked.
    */
@@ -81,6 +87,12 @@ enum AppStatus {
    * than defined minimum.
    */
   Degrading = "DEGRADING",
+
+  /**
+   * The function is active but does not have any available instances
+   * to connect to.
+   */
+  Degraded = "DEGRADED",
 
   /**
    * The function is deployed but currently inactive.
@@ -219,10 +231,13 @@ export async function getStreamingApps({
     const pages = new Map<StreamingApp["page"], Set<StreamingApp>>();
     const apps = new Map<StreamingApp["title"], StreamingApp>();
     for (const item of body) {
-      if (
-        item.status !== AppStatus.Active &&
-        item.status !== AppStatus.Degrading
-      ) {
+      const visibleStatuses = [
+        AppStatus.Active,
+        AppStatus.Degraded,
+        AppStatus.Degrading,
+      ];
+
+      if (!visibleStatuses.includes(item.status)) {
         continue;
       }
 
@@ -232,6 +247,7 @@ export async function getStreamingApps({
         name: item.version,
         functionId: item.function_id,
         functionVersionId: item.function_version_id,
+        status: item.status,
       };
       const app: StreamingApp = apps.get(item.title) ?? {
         id: item.id,

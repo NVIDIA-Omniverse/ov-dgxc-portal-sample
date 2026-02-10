@@ -21,46 +21,40 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-.applicationCard {
-    padding: 0;
-    transition: all 0.1s ease-in;
-    height: 92px;
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
+import { useConfig } from "./useConfig";
+import { HttpError } from "../util/Errors";
+import { fromSnakeCaseSchema } from "../util/Schemas";
+import { Config } from "../providers/ConfigProvider";
+
+export function useCurrentUser() {
+  const config = useConfig();
+  return useQuery({
+    queryKey: ["currentUser"],
+    queryFn: () => fetchCurrentUser(config),
+    staleTime: 5 * 60 * 1000,
+  });
 }
 
-.applicationCard:hover {
-    background: var(--mantine-color-dark-5);
+const CurrentUser = fromSnakeCaseSchema(
+  z.object({
+    isAdmin: z.boolean(),
+  }),
+);
+
+export type CurrentUser = z.infer<typeof CurrentUser>;
+
+async function fetchCurrentUser(config: Config): Promise<CurrentUser> {
+  const response = await fetch(`${config.endpoints.backend}/users/me`);
+  if (response.ok) {
+    const body: unknown = await response.json();
+    return await CurrentUser.parseAsync(body);
+  }
+  const text = await response.text();
+  throw new HttpError(
+    `Failed to load current user -- HTTP${response.status}.\n${text}`,
+    response.status,
+  );
 }
 
-.applicationCard.degraded {
-    pointer-events: none;
-}
-
-.applicationCard.degraded:hover {
-    background: inherit;
-}
-
-.applicationCard.degraded .cardIcon {
-    opacity: 0.5;
-}
-
-.applicationCard.degraded .cardProductArea {
-    opacity: 0.5;
-}
-
-.applicationCard.degraded .cardName {
-    opacity: 0.5;
-}
-
-.applicationCard.degraded .cardVersion {
-    opacity: 0.5;
-}
-
-.applicationCard.degraded .degradedWarning {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.applicationCard.degraded .cardMenu {
-    opacity: 1;
-    pointer-events: auto;
-}

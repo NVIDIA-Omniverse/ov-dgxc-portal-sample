@@ -35,6 +35,7 @@ const StreamingSession = fromSnakeCaseSchema(
     id: z.string(),
     functionId: z.string(),
     functionVersionId: z.string(),
+    nvcfRequestId: z.string().nullable().optional(),
     userId: z.string(),
     userName: z.string(),
     status: z.enum(["CONNECTING", "ACTIVE", "IDLE", "STOPPED"]),

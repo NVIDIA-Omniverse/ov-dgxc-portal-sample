@@ -19,7 +19,26 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from .apps import router as apps_router
-from .sessions import router as sessions_router
-from .pages import router as pages_router
-from .users import router as users_router
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.auth import authenticated_only, User
+
+router = APIRouter()
+
+
+class UserResponse(BaseModel):
+    is_admin: bool
+
+
+@router.get(
+    "/users/me",
+    description="Returns information about the currently authenticated user.",
+    response_model=UserResponse,
+)
+async def get_current_user(
+    user: Annotated[User, Depends(authenticated_only)],
+):
+    return UserResponse(is_admin=await user.is_admin())

@@ -25,6 +25,7 @@ import {
   Anchor,
   Breadcrumbs,
   Flex,
+  Group,
   Loader,
   Pagination,
   Stack,
@@ -36,11 +37,13 @@ import { useQuery } from "@tanstack/react-query";
 import { NavLink, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import LoaderError from "../components/LoaderError";
+import SessionCopyRequestIdButton from "../components/SessionCopyRequestIdButton";
 import SessionDuration from "../components/SessionDuration";
 import SessionStatus from "../components/SessionStatus";
 import SessionStatusFilter from "../components/SessionStatusFilter";
 import SessionTerminateButton from "../components/SessionTerminateButton";
 import { useConfig } from "../hooks/useConfig";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import { getSessions, StreamingSession } from "../state/Sessions";
 
 /**
@@ -53,6 +56,8 @@ import { getSessions, StreamingSession } from "../state/Sessions";
  */
 export default function UserSessionList() {
   const config = useConfig();
+  const { data: currentUser } = useCurrentUser();
+  const isAdmin = currentUser?.isAdmin ?? false;
 
   const [params, setParams] = useSearchParams();
   const page = params.has("page") ? Number(params.get("page")) : 1;
@@ -113,7 +118,8 @@ export default function UserSessionList() {
               <Table withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th maw={300}>#</Table.Th>
+                    <Table.Th maw={300}>Session ID</Table.Th>
+                    {isAdmin && <Table.Th>NVCF ID</Table.Th>}
                     <Table.Th>App</Table.Th>
                     <Table.Th>User</Table.Th>
                     <Table.Th w={125}>Status</Table.Th>
@@ -136,9 +142,20 @@ export default function UserSessionList() {
                           {session.id}
                         </Text>
                       </Table.Td>
+
+                      {isAdmin && (
+                        <Table.Td>
+                          <SessionCopyRequestIdButton session={session} />
+                        </Table.Td>
+                      )}
+
                       <Table.Td fz={"xs"}>
                         {session.app ? (
-                          <Anchor component={NavLink} fz={"xs"} to={`/app/${session.app.id}`}>
+                          <Anchor
+                            component={NavLink}
+                            fz={"xs"}
+                            to={`/app/${session.app.id}`}
+                          >
                             {session.app.productArea} {session.app.title}{" "}
                             {session.app.version}
                           </Anchor>
@@ -162,9 +179,11 @@ export default function UserSessionList() {
                         <SessionDuration session={session} />
                       </Table.Td>
                       <Table.Td>
-                        {session.status !== "STOPPED" && (
-                          <SessionTerminateButton session={session} />
-                        )}
+                        <Group justify={"end"}>
+                          {session.status !== "STOPPED" && (
+                            <SessionTerminateButton session={session} />
+                          )}
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}

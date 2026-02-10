@@ -69,7 +69,7 @@ class Settings:
     nvcf_signaling_endpoint: str = "wss://grpc.nvcf.nvidia.com"
 
     """Number of seconds to cache data pulled from nvcf_control_endpoint."""
-    nvcf_cache_ttl: int = 60 * 5
+    nvcf_cache_ttl: int = 30
 
     root_path: str | None = None
     database_url: str = "sqlite://db/db.sqlite3"

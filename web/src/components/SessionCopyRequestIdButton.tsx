@@ -21,46 +21,35 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-.applicationCard {
-    padding: 0;
-    transition: all 0.1s ease-in;
-    height: 92px;
+import { ActionIcon, CopyButton, Tooltip } from "@mantine/core";
+import { IconCheck, IconCopy } from "@tabler/icons-react";
+import { StreamingSession } from "../state/Sessions";
+
+export interface SessionCopyRequestIdButtonProps {
+  session: StreamingSession;
 }
 
-.applicationCard:hover {
-    background: var(--mantine-color-dark-5);
+export default function SessionCopyRequestIdButton({
+  session,
+}: SessionCopyRequestIdButtonProps) {
+  if (!session.nvcfRequestId) {
+    return null;
+  }
+
+  return (
+    <CopyButton value={session.nvcfRequestId}>
+      {({ copied, copy }) => (
+        <Tooltip label={copied ? "Copied" : "Copy NVCF Request ID"} withArrow>
+          <ActionIcon
+            color={copied ? "teal" : "gray"}
+            variant="subtle"
+            onClick={copy}
+          >
+            {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+          </ActionIcon>
+        </Tooltip>
+      )}
+    </CopyButton>
+  );
 }
 
-.applicationCard.degraded {
-    pointer-events: none;
-}
-
-.applicationCard.degraded:hover {
-    background: inherit;
-}
-
-.applicationCard.degraded .cardIcon {
-    opacity: 0.5;
-}
-
-.applicationCard.degraded .cardProductArea {
-    opacity: 0.5;
-}
-
-.applicationCard.degraded .cardName {
-    opacity: 0.5;
-}
-
-.applicationCard.degraded .cardVersion {
-    opacity: 0.5;
-}
-
-.applicationCard.degraded .degradedWarning {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.applicationCard.degraded .cardMenu {
-    opacity: 1;
-    pointer-events: auto;
-}
