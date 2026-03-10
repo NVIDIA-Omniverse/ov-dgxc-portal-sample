@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -105,6 +105,10 @@ export default function AppInfo() {
               <Table.Td>{data.latestVersion.name}</Table.Td>
             </Table.Tr>
             <Table.Tr>
+              <Table.Th>Page</Table.Th>
+              <Table.Td>{data.page}</Table.Td>
+            </Table.Tr>
+            <Table.Tr>
               <Table.Th>Category</Table.Th>
               <Table.Td>{data.category}</Table.Td>
             </Table.Tr>
@@ -126,6 +130,54 @@ export default function AppInfo() {
             </Table.Tr>
           </Table.Tbody>
         </Table>
+
+        {data.deployment && (
+          <>
+            <Title order={4} c={"gray"}>
+              Function Deployment Details
+            </Title>
+            <Table variant={"vertical"} withTableBorder>
+              <Table.Tbody>
+                {data.deployment.instanceType && (
+                  <Table.Tr>
+                    <Table.Th w={150}>GPU instance type</Table.Th>
+                    <Table.Td>{data.deployment.instanceType}</Table.Td>
+                  </Table.Tr>
+                )}
+                {data.deployment.gpu && (
+                  <Table.Tr>
+                    <Table.Th>GPU</Table.Th>
+                    <Table.Td>{data.deployment.gpu}</Table.Td>
+                  </Table.Tr>
+                )}
+                {data.deployment.cluster && (
+                  <Table.Tr>
+                    <Table.Th>Cluster</Table.Th>
+                    <Table.Td>{data.deployment.cluster}</Table.Td>
+                  </Table.Tr>
+                )}
+                {data.deployment.minInstances != null && (
+                  <Table.Tr>
+                    <Table.Th>Min instances</Table.Th>
+                    <Table.Td>{data.deployment.minInstances}</Table.Td>
+                  </Table.Tr>
+                )}
+                {data.deployment.maxInstances != null && (
+                  <Table.Tr>
+                    <Table.Th>Max instances</Table.Th>
+                    <Table.Td>{data.deployment.maxInstances}</Table.Td>
+                  </Table.Tr>
+                )}
+                {data.deployment.maxRequestConcurrency != null && (
+                  <Table.Tr>
+                    <Table.Th>Max concurrency</Table.Th>
+                    <Table.Td>{data.deployment.maxRequestConcurrency}</Table.Td>
+                  </Table.Tr>
+                )}
+              </Table.Tbody>
+            </Table>
+          </>
+        )}
       </Stack>
     </Stack>
   );

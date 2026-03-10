@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -25,19 +25,22 @@ import { hideNotification, notifications } from "@mantine/notifications";
 import {
   AppStreamer,
   DirectConfig,
-  eAction,
-  eStatus,
+  EventAction,
+  EventStatus,
   LogFormat,
   LogLevel,
+  StatsEvent,
   StreamEvent,
   StreamType,
-} from "@nvidia/omniverse-webrtc-streaming-library";
+} from "@nvidia/ov-web-rtc";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Config } from "../providers/ConfigProvider";
 import { StreamingApp } from "../state/Apps";
+import { getResolution } from "../state/StreamResolution";
 import { useConfig } from "./useConfig";
 import useError from "./useError";
 import useStreamStart, {
+  showBrowserCodecWarning,
   showStreamWarning,
   streamStartNotification,
 } from "./useStreamStart";
@@ -48,12 +51,14 @@ export interface UseStreamOptions {
    * The payload from a deep-link that will be passed to the stream.
    */
   payload?: string;
+  resolution?: string;
   sessionId: string;
   videoElementId?: string;
   audioElementId?: string;
 
   onCustomEvent?: (message: unknown) => void;
-  onStreamStats?: (message: StreamEvent) => void;
+  onStreamStats?: (message: StatsEvent) => void;
+  onStreamEnd?: () => void;
 }
 
 export interface UseStreamResult {
@@ -65,11 +70,13 @@ export interface UseStreamResult {
 export default function useStream({
   app,
   payload,
+  resolution,
   sessionId,
   videoElementId = "stream-video",
   audioElementId = "stream-audio",
   onCustomEvent,
   onStreamStats,
+  onStreamEnd,
 }: UseStreamOptions): UseStreamResult {
   const config = useConfig();
   const [loading, setLoading] = useState(false);
@@ -83,12 +90,15 @@ export default function useStream({
 
   const callbacks = useRef({
     onCustomEvent,
-    onStreamStats
+    onStreamStats,
+    onStreamEnd,
   });
   callbacks.current = {
     onCustomEvent,
-    onStreamStats
+    onStreamStats,
+    onStreamEnd,
   };
+
 
   useEffect(() => {
     if (!sessionId) {
@@ -111,8 +121,8 @@ export default function useStream({
     function onStart(message: StreamEvent) {
       console.log("onStart", message);
 
-      if (message.action === eAction.start) {
-        if (message.status === eStatus.success) {
+      if (message.action === EventAction.START) {
+        if (message.status === EventStatus.SUCCESS) {
           const video = document.getElementById(
             videoElementId,
           ) as HTMLVideoElement;
@@ -131,10 +141,10 @@ export default function useStream({
               payload: { data: payload },
             });
           }
-        } else if (message.status === eStatus.error) {
+        } else if (message.status === EventStatus.ERROR) {
           setError(message.info || "Unknown error.");
           setLoading(false);
-        } else if (message.status === eStatus.warning) {
+        } else if (message.status === EventStatus.WARNING) {
           showStreamWarning();
         }
       }
@@ -142,14 +152,15 @@ export default function useStream({
 
     function onStop(message: StreamEvent) {
       console.log("onStop", message);
+      callbacks.current.onStreamEnd?.();
     }
 
     function onTerminate(message: StreamEvent) {
       console.log("onTerminate", message);
+      callbacks.current.onStreamEnd?.();
     }
 
-    function onStreamStats(message: StreamEvent) {
-      console.log("onStreamStats", message);
+    function onStreamStats(message: StatsEvent) {
       callbacks.current.onStreamStats?.(message);
     }
 
@@ -158,7 +169,7 @@ export default function useStream({
       callbacks.current.onCustomEvent?.(message);
     }
 
-    const params = createStreamConfig(app, sessionId, config);
+    const params = createStreamConfig(app, sessionId, config, resolution);
 
     async function connect() {
       try {
@@ -180,9 +191,9 @@ export default function useStream({
           }
         }
 
-        await AppStreamer.connect({
+        const result = await AppStreamer.connect({
           streamSource: StreamType.NVCF,
-          logLevel: LogLevel.DEBUG,
+          logLevel: LogLevel.INFO,
           logFormat: LogFormat.TEXT,
           streamConfig: {
             videoElementId,
@@ -198,6 +209,10 @@ export default function useStream({
             onCustomEvent,
           },
         });
+
+        if (isBrowserCodecWarning(result)) {
+          showBrowserCodecWarning();
+        }
       } catch (error) {
         setError(
           "info" in (error as StreamEvent)
@@ -222,6 +237,7 @@ export default function useStream({
   }, [
     app,
     payload,
+    resolution,
     sessionId,
     videoElementId,
     audioElementId,
@@ -249,6 +265,20 @@ export default function useStream({
   };
 }
 
+/**
+ * Returns true when the given event matches the codec compatibility warning
+ * emitted by @nvidia/ov-web-rtc 6.2.x+ when the requested 4K resolution cannot
+ * be served because the browser does not advertise H264/H265 (HEVC) support
+ * via RTCRtpReceiver.getCapabilities.
+ */
+function isBrowserCodecWarning(event: StreamEvent | undefined): boolean {
+  if (!event || event.status !== EventStatus.WARNING) {
+    return false;
+  }
+  const info = typeof event.info === "string" ? event.info : "";
+  return /h\.?26[45]|hevc|codec/i.test(info);
+}
+
 async function checkSession(
   sessionId: string,
   config: Config,
@@ -273,20 +303,28 @@ async function checkSession(
  * @param app
  * @param sessionId
  * @param config
+ * @param resolutionKey
  * @returns {URLSearchParams}
  */
 function createStreamConfig(
   app: StreamingApp,
   sessionId: string,
   config: Config,
+  resolutionKey?: string,
 ): Partial<DirectConfig> {
+  const { width, height } = getResolution(resolutionKey ?? null);
+
   const params: DirectConfig = {
-    width: 1920,
-    height: 1080,
+    width,
+    height,
     fps: 60,
     mic: false,
     cursor: "free",
     autoLaunch: true,
+
+    // Adjust the stream resolution to the current size of the video element
+    // so the streamed app UI auto-fits the browser window without letterboxing.
+    fitStreamResolution: true,
 
     // Specifies that the default streaming endpoint must not be used.
     // Enables signaling parameters for the component.

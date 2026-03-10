@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -65,7 +65,8 @@ export default function NucleusSSO() {
         throw new Error(result.errors.join("\n"));
       }
 
-      return result.extras?.redirectAfter ?? "/";
+      const redirect = result.extras?.redirectAfter;
+      return redirect ? decodeURIComponent(redirect) : "/";
     },
     refetchOnMount: false,
     refetchOnWindowFocus: false,

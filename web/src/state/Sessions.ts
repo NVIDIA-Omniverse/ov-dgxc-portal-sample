@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -41,6 +41,7 @@ const StreamingSession = fromSnakeCaseSchema(
     status: z.enum(["CONNECTING", "ACTIVE", "IDLE", "STOPPED"]),
     startDate: z.coerce.date(),
     endDate: z.coerce.date().nullable(),
+    duration: z.number(),
     app: fromSnakeCaseSchema(
       z.object({
         id: z.string(),
@@ -63,6 +64,7 @@ export interface GetSessionsParams {
   page?: number;
   status?: string;
   appId?: string;
+  orderBy?: string;
 }
 
 /**
@@ -80,6 +82,7 @@ export async function getSessions({
   page,
   status,
   appId,
+  orderBy,
 }: GetSessionsParams): Promise<StreamingSessionPage> {
   const params = new URLSearchParams();
   if (page) {
@@ -90,6 +93,9 @@ export async function getSessions({
   }
   if (appId) {
     params.set("app_id", appId.toString());
+  }
+  if (orderBy) {
+    params.set("order_by", orderBy);
   }
 
   const response = await fetch(

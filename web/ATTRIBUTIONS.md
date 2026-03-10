@@ -513,7 +513,7 @@ SOFTWARE.
 
 
 
-@nvidia/omniverse-webrtc-streaming-library@5.15.5
+@nvidia/ov-web-rtc@6.2.2
 -------------------------------------------------
 Custom: https://edge.urm.nvidia.com/artifactory/api/npm/omniverse-client-npm/
 

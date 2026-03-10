@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -1073,3 +1073,65 @@ async def test_terminate_session_timeout(client, create_session, respx_mock):
     assert response.status_code == 408
     assert response.text == "Failed to terminate session with a timeout -- try again later."
     assert nvcf.called
+
+
+async def test_session_data_purge(client, create_session):
+    original_retention = settings.session_retention_days
+    original_watch_interval = settings.session_watch_interval
+    settings.session_retention_days = 7
+    settings.session_watch_interval = 1
+
+    try:
+        old_session = await create_session(
+            status=SessionStatus.stopped,
+            start_date=(
+                datetime.datetime.now(datetime.timezone.utc) -
+                datetime.timedelta(days=8)
+            ),
+        )
+        recent_session = await create_session(
+            status=SessionStatus.stopped,
+            start_date=(
+                datetime.datetime.now(datetime.timezone.utc) -
+                datetime.timedelta(days=3)
+            ),
+        )
+        alive_old_session = await create_session(
+            status=SessionStatus.active,
+            start_date=(
+                datetime.datetime.now(datetime.timezone.utc) -
+                datetime.timedelta(days=10)
+            ),
+        )
+
+        await asyncio.sleep(2)
+
+        assert await SessionModel.get_or_none(id=old_session.id) is None
+        assert await SessionModel.get_or_none(id=recent_session.id) is not None
+        assert await SessionModel.get_or_none(id=alive_old_session.id) is not None
+    finally:
+        settings.session_retention_days = original_retention
+        settings.session_watch_interval = original_watch_interval
+
+
+async def test_session_data_purge_disabled(client, create_session):
+    original_retention = settings.session_retention_days
+    original_watch_interval = settings.session_watch_interval
+    settings.session_retention_days = 0
+    settings.session_watch_interval = 1
+
+    try:
+        old_session = await create_session(
+            status=SessionStatus.stopped,
+            start_date=(
+                datetime.datetime.now(datetime.timezone.utc) -
+                datetime.timedelta(days=365)
+            ),
+        )
+
+        await asyncio.sleep(2)
+
+        assert await SessionModel.get_or_none(id=old_session.id) is not None
+    finally:
+        settings.session_retention_days = original_retention
+        settings.session_watch_interval = original_watch_interval

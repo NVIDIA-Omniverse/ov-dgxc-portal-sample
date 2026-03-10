@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -46,6 +46,25 @@ published_app = jsonable_encoder(
 )
 
 
+nvcf_deployment_response = {
+    "deployment": {
+        "functionId": published_app["function_id"],
+        "functionVersionId": published_app["function_version_id"],
+        "functionStatus": "ACTIVE",
+        "deploymentSpecifications": [
+            {
+                "gpu": "L40",
+                "instanceType": "DGX-CLOUD.GPU.L40_1x",
+                "minInstances": 3,
+                "maxInstances": 3,
+                "maxRequestConcurrency": 1,
+                "clusters": ["nvcf-dgxc-k8s-forge-az33-prd1"],
+            }
+        ],
+    }
+}
+
+
 @pytest.fixture(autouse=True)
 def mock_nvcf_functions(respx_mock):
     route = respx_mock.get(
@@ -77,11 +96,36 @@ def mock_nvcf_functions(respx_mock):
     yield route
 
 
+@pytest.fixture(autouse=True)
+def mock_nvcf_deployment(respx_mock):
+    from app.nvcf import nvcf_deployment_cache
+    nvcf_deployment_cache.clear()
+
+    fid = published_app["function_id"]
+    fvid = published_app["function_version_id"]
+    route = respx_mock.get(
+        f"{settings.ngc_endpoint}"
+        f"/v2/nvcf/deployments/functions/{fid}/versions/{fvid}"
+    ).respond(json=nvcf_deployment_response)
+    yield route
+
+
+deployment_details = {
+    "instance_type": "DGX-CLOUD.GPU.L40_1x",
+    "gpu": "L40",
+    "cluster": "nvcf-dgxc-k8s-forge-az33-prd1",
+    "min_instances": 3,
+    "max_instances": 3,
+    "max_request_concurrency": 1,
+}
+
+
 published_app_response = {
     **published_app,
     "id": "python:3.12",
     "published_at": "2024-06-17T17:00:00Z",
     "status": "ACTIVE",
+    "deployment": None,
 }
 
 
@@ -93,13 +137,16 @@ async def test_create_app(client):
     )
 
     assert response.status_code == 201
-    assert (created_data := response.json()) == published_app_response
+    assert response.json() == published_app_response
 
     response = await client.get(
         "/apps/python:3.12",
     )
     assert response.status_code == 200
-    assert response.json() == created_data
+    assert response.json() == {
+        **published_app_response,
+        "deployment": deployment_details,
+    }
 
 
 @freeze_time("2024-06-17 17:00:00")
@@ -110,7 +157,7 @@ async def test_create_app_with_slash(client):
     )
 
     assert response.status_code == 201
-    assert (created_data := response.json()) == {
+    assert response.json() == {
         **published_app_response,
         "id": "test/python:3.12",
     }
@@ -119,7 +166,11 @@ async def test_create_app_with_slash(client):
         "/apps/test/python:3.12",
     )
     assert response.status_code == 200
-    assert response.json() == created_data
+    assert response.json() == {
+        **published_app_response,
+        "id": "test/python:3.12",
+        "deployment": deployment_details,
+    }
 
 
 async def test_create_app_is_unauthorized_for_anonymous_user(client):
@@ -154,7 +205,7 @@ async def test_update_app(client):
         json={**published_app, "version": "3.12.3"},
     )
     assert response.status_code == 200
-    assert (updated_data := response.json()) == {
+    assert response.json() == {
         **published_app_response,
         "version": "3.12.3",
     }
@@ -163,7 +214,11 @@ async def test_update_app(client):
         "/apps/python:3.12",
     )
     assert response.status_code == 200
-    assert response.json() == updated_data
+    assert response.json() == {
+        **published_app_response,
+        "version": "3.12.3",
+        "deployment": deployment_details,
+    }
 
 
 @freeze_time("2024-06-17 17:00:00")
@@ -266,9 +321,10 @@ async def test_delete_app_is_denied_for_non_admin_user(client, user_token):
 
 @freeze_time("2024-06-17 17:00:00")
 async def test_get_app_unknown_status_when_not_in_nvcf(client, respx_mock):
-    from app.nvcf import nvcf_function_cache
+    from app.nvcf import nvcf_function_cache, nvcf_deployment_cache
 
     nvcf_function_cache.clear()
+    nvcf_deployment_cache.clear()
     respx_mock.get(
         f"{settings.nvcf_control_endpoint}/v2/nvcf/functions"
     ).respond(json={"functions": []})
@@ -282,9 +338,10 @@ async def test_get_app_unknown_status_when_not_in_nvcf(client, respx_mock):
 
 @freeze_time("2024-06-17 17:00:00")
 async def test_get_app_handles_nvcf_error(client, respx_mock):
-    from app.nvcf import nvcf_function_cache
+    from app.nvcf import nvcf_function_cache, nvcf_deployment_cache
 
     nvcf_function_cache.clear()
+    nvcf_deployment_cache.clear()
     respx_mock.get(
         f"{settings.nvcf_control_endpoint}/v2/nvcf/functions"
     ).respond(status_code=500)
@@ -313,10 +370,86 @@ async def test_create_app_with_api_key(database):
             )
 
             assert response.status_code == 201
-            assert (created_data := response.json()) == published_app_response
+            assert response.json() == published_app_response
 
             response = await client.get(
                 "/apps/python:3.12",
             )
             assert response.status_code == 200
-            assert response.json() == created_data
+            assert response.json() == {
+                **published_app_response,
+                "deployment": deployment_details,
+            }
+
+
+@freeze_time("2024-06-17 17:00:00")
+async def test_get_app_includes_deployment_details(client):
+    await PublishedAppModel.create(**published_app, id="python:3.12")
+
+    response = await client.get("/apps/python:3.12")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["deployment"] == deployment_details
+
+
+@freeze_time("2024-06-17 17:00:00")
+async def test_get_app_deployment_null_when_nvcf_returns_error(
+    client, respx_mock
+):
+    from app.nvcf import nvcf_deployment_cache
+
+    nvcf_deployment_cache.clear()
+    fid = published_app["function_id"]
+    fvid = published_app["function_version_id"]
+    respx_mock.get(
+        f"{settings.ngc_endpoint}"
+        f"/v2/nvcf/deployments/functions/{fid}/versions/{fvid}"
+    ).respond(status_code=500)
+
+    await PublishedAppModel.create(**published_app, id="python:3.12")
+
+    response = await client.get("/apps/python:3.12")
+    assert response.status_code == 200
+    assert response.json()["deployment"] is None
+
+
+@freeze_time("2024-06-17 17:00:00")
+async def test_get_app_deployment_null_when_function_not_deployed(
+    client, respx_mock
+):
+    from app.nvcf import nvcf_deployment_cache
+
+    nvcf_deployment_cache.clear()
+    fid = published_app["function_id"]
+    fvid = published_app["function_version_id"]
+    respx_mock.get(
+        f"{settings.ngc_endpoint}"
+        f"/v2/nvcf/deployments/functions/{fid}/versions/{fvid}"
+    ).respond(status_code=404)
+
+    await PublishedAppModel.create(**published_app, id="python:3.12")
+
+    response = await client.get("/apps/python:3.12")
+    assert response.status_code == 200
+    assert response.json()["deployment"] is None
+
+
+@freeze_time("2024-06-17 17:00:00")
+async def test_list_apps_does_not_include_deployment_details(client):
+    await PublishedAppModel.create(**published_app, id="python:3.12")
+
+    response = await client.get("/apps/")
+    assert response.status_code == 200
+    apps = response.json()
+    assert len(apps) == 1
+    assert apps[0]["deployment"] is None
+
+
+@freeze_time("2024-06-17 17:00:00")
+async def test_get_app_deployment_is_cached(client, mock_nvcf_deployment):
+    await PublishedAppModel.create(**published_app, id="python:3.12")
+
+    await client.get("/apps/python:3.12")
+    await client.get("/apps/python:3.12")
+
+    assert mock_nvcf_deployment.call_count == 1

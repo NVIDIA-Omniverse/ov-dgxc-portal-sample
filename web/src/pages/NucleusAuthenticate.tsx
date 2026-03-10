@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -55,7 +55,7 @@ export default function NucleusAuthenticate() {
   return (
     <Box m={"md"}>
       <AuthForm
-        extras={{ redirectAfter }}
+        extras={{ redirectAfter: encodeURIComponent(redirectAfter) }}
         initial={{ server: config.endpoints.nucleus }}
         readonly={{ server: true }}
         ssoRedirectBackTo={`${window.location.origin}/nucleus/sso`}

@@ -23,17 +23,24 @@ Create the `main.json` file in the `web/public/config` directory with the follow
   "auth": {
     "authority": "...",
     "clientId": "...",
-    "redirectUri": "http://127.0.0.1:3180/openid",
+    "redirectUri": "http://localhost:3180/openid",
     "scope": "openid profile email authz"
   },
   "endpoints": {
-    "backend": "http://127.0.0.1:3180/api",
+    "backend": "http://localhost:3180/api",
     "nucleus": "..."
   },
   "sessions": {
-    "maxTtl": 28800
+    "maxTtl": 28800,
+    "sessionEndNotificationTime": 60,
+    "sessionEndNotificationDuration": 30
+  },
+  "userInterface": {
+    "title": "Welcome to Omniverse!"
+  },
+  "storageApi": {
+    "redirectUri": "http://localhost:3180/storage-api/openid"
   }
-}
 ```
 
 Run the `npm run dev` command to start the application in development mode. 

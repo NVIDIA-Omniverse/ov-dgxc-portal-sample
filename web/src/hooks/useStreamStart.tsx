@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -30,8 +30,13 @@ import { useConfig } from "./useConfig";
  * Starts the streaming session.
  * @param appId The unique identifier of the application that needs to be started.
  * @param payload The payload from a deep-link that will be passed to the stream.
+ * @param resolution The preset for stream resolution.
  */
-export default function useStreamStart(appId: string, payload?: string) {
+export default function useStreamStart(
+  appId: string,
+  payload?: string,
+  resolution?: string,
+) {
   const config = useConfig();
   return useMutation({
     mutationFn: async () => {
@@ -42,10 +47,11 @@ export default function useStreamStart(appId: string, payload?: string) {
       return failureCount < 3;
     },
     onSuccess: (session) => {
-      let href =  `/app/${appId}/sessions/${session.id}`;
-      if (payload) {
-        href += `?payload=${payload}`;
-      }
+      const params = new URLSearchParams();
+      if (payload) params.set("payload", payload);
+      if (resolution) params.set("resolution", resolution);
+      const query = params.toString();
+      const href = `/app/${appId}/sessions/${session.id}${query ? `?${query}` : ""}`;
       window.location.href = href;
     },
     onError: (error) => {
@@ -67,4 +73,22 @@ export function showStreamWarning() {
   });
 }
 
+/**
+ * Notifies the user when their browser lacks H264/HEVC (H.265) codec support
+ * required by the streaming library for 4K streams.
+ */
+export function showBrowserCodecWarning() {
+  notifications.hide(browserCodecNotification);
+  notifications.show({
+    id: browserCodecNotification,
+    color: "yellow",
+    title: "Browser not compatible with HEVC/H.265",
+    message:
+      "This web browser does not provide a compatible codec for streaming in the requested resolution.",
+    autoClose: false,
+    withCloseButton: true,
+  });
+}
+
 export const streamStartNotification = "stream-start";
+export const browserCodecNotification = "stream-browser-codec";

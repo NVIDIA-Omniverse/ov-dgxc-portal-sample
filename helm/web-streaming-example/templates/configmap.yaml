@@ -8,23 +8,27 @@ data:
   main.json: |
     {
       "auth": {
-        "clientId": "{{ .Values.config.auth.clientId }}",
-        "authority": "{{ .Values.config.auth.authority }}",
-        "metadataUri": "{{ .Values.config.auth.metadataUri }}",
-        "redirectUri": "{{ .Values.config.auth.redirectUri }}",
-        "scope": "{{ .Values.config.auth.scope }}"
+        "clientId": {{ .Values.config.auth.clientId | toJson }},
+        "authority": {{ .Values.config.auth.authority | toJson }},
+        "metadataUri": {{ .Values.config.auth.metadataUri | toJson }},
+        "redirectUri": {{ .Values.config.auth.redirectUri | toJson }},
+        "scope": {{ .Values.config.auth.scope | toJson }}
       },
       "endpoints": {
-        "backend": "{{ .Values.config.endpoints.backend }}",
-        "nucleus": "{{ .Values.config.endpoints.nucleus }}"
+        "backend": {{ .Values.config.endpoints.backend | toJson }},
+        "nucleus": {{ .Values.config.endpoints.nucleus | toJson }}
       },
       "sessions": {
-        "maxTtl": {{ .Values.config.sessionTtl }},
-        "sessionEndNotificationTime": {{ .Values.config.sessionEndNotificationTime }},
-        "sessionEndNotificationDuration": {{ .Values.config.sessionEndNotificationDuration }}
+        "maxTtl": {{ .Values.config.sessionTtl | int }},
+        "sessionEndNotificationTime": {{ .Values.config.sessionEndNotificationTime | int }},
+        "sessionEndNotificationDuration": {{ .Values.config.sessionEndNotificationDuration | int }}
       },
       "userInterface": {
-        "title": "{{ .Values.config.userInterface.title }}"
+        "title": {{ .Values.config.userInterface.title | toJson }},
+        "version": {{ .Chart.Version | toJson }}
+      },
+      "storageApi": {
+        "redirectUri": {{ .Values.config.storageApi.redirectUri | toJson }}
       }
     }
 
@@ -47,7 +51,7 @@ data:
 
         location / {
           add_header Strict-Transport-Security max-age=3600;
-          add_header Content-Security-Policy "{{ .Values.config.csp }}";
+          add_header Content-Security-Policy {{ .Values.config.csp | quote }};
           try_files $uri /index.html;
         }
       }
@@ -58,24 +62,26 @@ data:
   settings.toml: |
     root_path = "/api"
 
-    admin_group = "{{ .Values.config.auth.adminGroup }}"
-    client_id = "{{ .Values.config.auth.clientId }}"
-    groups_claim = "{{ .Values.config.auth.groupsClaim }}"
-    jwks_alg = "{{ .Values.config.auth.jwksAlg }}"
-    jwks_ttl = {{ .Values.config.auth.jwksTtl }}
-    metadata_uri = "{{ .Values.config.auth.metadataUri }}"
-    userinfo_ttl = {{ .Values.config.auth.userinfoTtl }}
+    admin_group = {{ .Values.config.auth.adminGroup | toJson }}
+    client_id = {{ .Values.config.auth.clientId | toJson }}
+    groups_claim = {{ .Values.config.auth.groupsClaim | toJson }}
+    jwks_alg = {{ .Values.config.auth.jwksAlg | toJson }}
+    jwks_ttl = {{ .Values.config.auth.jwksTtl | int }}
+    metadata_uri = {{ .Values.config.auth.metadataUri | toJson }}
+    userinfo_ttl = {{ .Values.config.auth.userinfoTtl | int }}
+    issuer = {{ .Values.config.auth.issuer | toJson }}
 
-    nvcf_api_key = "{{ .Values.nvcf.key }}"
-    nvcf_control_endpoint = "{{ .Values.nvcf.controlEndpoint }}"
-    nvcf_signaling_endpoint = "{{ .Values.nvcf.signalingEndpoint }}"
-    nvcf_cache_ttl = {{ .Values.nvcf.cacheTtl }}
-    ngc_endpoint = "{{ .Values.nvcf.ngcEndpoint }}"
-    ngc_org = "{{ .Values.nvcf.ngcOrg }}"
+    nvcf_api_key = {{ .Values.nvcf.key | toJson }}
+    nvcf_control_endpoint = {{ .Values.nvcf.controlEndpoint | toJson }}
+    nvcf_signaling_endpoint = {{ .Values.nvcf.signalingEndpoint | toJson }}
+    nvcf_cache_ttl = {{ .Values.nvcf.cacheTtl | int }}
+    ngc_endpoint = {{ .Values.nvcf.ngcEndpoint | toJson }}
+    ngc_org = {{ .Values.nvcf.ngcOrg | toJson }}
 
-    session_ttl = {{ .Values.config.sessionTtl }}
-    session_watch_interval = {{ .Values.config.sessionWatchInterval }}
-    session_idle_timeout = {{ .Values.config.sessionIdleTimeout }}
-    max_app_instances_count = {{ .Values.config.maxAppInstancesCount }}
+    session_ttl = {{ .Values.config.sessionTtl | int }}
+    session_watch_interval = {{ .Values.config.sessionWatchInterval | int }}
+    session_idle_timeout = {{ .Values.config.sessionIdleTimeout | int }}
+    session_retention_days = {{ .Values.config.sessionRetentionDays | int }}
+    max_app_instances_count = {{ .Values.config.maxAppInstancesCount | int }}
 
-    h11_max_incomplete_event_size = {{ .Values.config.h11MaxIncompleteEventSize }}
+    h11_max_incomplete_event_size = {{ .Values.config.h11MaxIncompleteEventSize | int }}

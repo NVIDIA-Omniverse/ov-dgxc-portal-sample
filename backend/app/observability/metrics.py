@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -40,6 +40,7 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
+from app.models import SessionModel
 from app.settings import settings
 
 metric_exporter = OTLPMetricExporter(
@@ -225,3 +226,15 @@ gpu_active = meter.create_observable_gauge(
     description="GPUs currently assigned to active NVCF functions.",
     callbacks=[get_active_gpus],
 )
+
+
+def emit_session_end_metrics(session: SessionModel):
+    metric_attrs = {
+        "session.app": session.app_id,
+        "session.user": session.user_id,
+        "session.username": session.user_name,
+        "nvcf.function_id": str(session.function_id),
+        "nvcf.function_version_id": str(session.function_version_id),
+    }
+    session_end.add(1, metric_attrs)
+    session_duration.record(session.duration, metric_attrs)

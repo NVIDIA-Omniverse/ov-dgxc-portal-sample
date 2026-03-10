@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -34,8 +34,8 @@ from tortoise.contrib.fastapi import RegisterTortoise
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
 from app.api_keys import api_keys
-from app.routers import apps_router, sessions_router, pages_router, users_router
-from app.routers.sessions import watch_session_timeout, watch_idle_sessions
+from app.routers import apps_router, deployment_router, sessions_router, pages_router, users_router
+from app.routers.sessions import watch_session_timeout, watch_idle_sessions, watch_session_data_purge
 from app.settings import settings
 
 
@@ -46,6 +46,7 @@ async def configure_api(app: FastAPI):
 
     session_termination_task = None
     session_idle_termination_task = None
+    session_data_purge_task = None
     try:
         async with RegisterTortoise(
             app,
@@ -61,12 +62,19 @@ async def configure_api(app: FastAPI):
                 watch_idle_sessions()
             )
             session_idle_termination_task.add_done_callback(watcher_task_done)
+
+            session_data_purge_task = asyncio.create_task(
+                watch_session_data_purge()
+            )
+            session_data_purge_task.add_done_callback(watcher_task_done)
             yield
     finally:
         if session_termination_task is not None:
             session_termination_task.cancel()
         if session_idle_termination_task is not None:
             session_idle_termination_task.cancel()
+        if session_data_purge_task is not None:
+            session_data_purge_task.cancel()
         settings.stop()
         api_keys.stop()
 
@@ -113,6 +121,7 @@ async def integrityerror_exception_handler(
 
 
 api.include_router(apps_router, tags=["apps"])
+api.include_router(deployment_router, tags=["deployment"])
 api.include_router(sessions_router, tags=["sessions"])
 api.include_router(pages_router, tags=["pages"])
 api.include_router(users_router, tags=["users"])
@@ -121,8 +130,12 @@ api.include_router(users_router, tags=["users"])
 def start():
     logging_config = uvicorn.config.LOGGING_CONFIG
     logging_config["loggers"]["uvicorn"]["level"] = "DEBUG"
-    logging_config["loggers"]["uvicorn.error"]["level"] = "ERROR"
     logging_config["loggers"]["uvicorn.access"]["level"] = "INFO"
+    logging_config["loggers"]["app"] = {
+        "handlers": ["default"],
+        "level": "INFO",
+        "propagate": False,
+    }
 
     uvicorn.run(
         "app.main:api",

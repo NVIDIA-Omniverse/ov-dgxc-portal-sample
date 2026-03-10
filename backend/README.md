@@ -80,6 +80,14 @@ userinfo_ttl = 900
 
 # The user group required for updating or deleting data via the API.
 admin_group = "admin"
+
+# The expected `iss` (issuer) claim value of accepted ID tokens.
+# Per OpenID Connect Core 3.1.3.7, the issuer claim MUST be validated
+# against the configured IdP. When omitted, the value advertised in the
+# OpenID Connect discovery document (`issuer`) is used as a fallback.
+# Set this explicitly in shared-IdP or multi-tenant deployments to prevent
+# cross-tenant token acceptance.
+issuer = "https://idp.example.com/"
 ```
 
 Use `poetry run migrations` command to initialize the database.

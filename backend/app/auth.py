@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -34,10 +34,11 @@ from jwt import PyJWTError, PyJWKClient
 from app.api_keys import api_keys, ApiKey
 from app.settings import settings
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger(__name__)
 
 
 class OpenIdConfig(TypedDict):
+    issuer: str
     jwks_uri: str
     token_endpoint: str
     userinfo_endpoint: str
@@ -63,6 +64,28 @@ def get_jwk_client() -> PyJWKClient:
             lifespan=settings.jwks_ttl
         )
     return _jwk_client
+
+
+def get_expected_issuer() -> str:
+    """
+    Returns the issuer value to validate JWT `iss` claims against.
+
+    Prefers the explicitly configured `settings.issuer` to defend against
+    a compromised or attacker-controlled discovery document. Falls back to
+    the `issuer` advertised by the OpenID Connect discovery endpoint when
+    no value is configured (per OIDC Discovery 1.0, this field is REQUIRED).
+    """
+    if settings.issuer:
+        return settings.issuer
+
+    oidc_config = get_openid_configuration()
+    issuer = oidc_config.get("issuer")
+    if not issuer:
+        raise HTTPException(
+            status_code=401,
+            detail="Issuer not configured and not advertised by the IdP",
+        )
+    return issuer
 
 
 class IdTokenPayload(TypedDict):
@@ -203,6 +226,8 @@ def decode_token(id_token: str, access_token: str | None = None) -> User:
             key=signing_key.key,
             algorithms=[settings.jwks_alg],
             audience=settings.client_id,
+            issuer=get_expected_issuer(),
+            options={"require": ["exp", "iss", "aud"]},
         )
         return User(
             id_token=id_token, access_token=access_token, payload=payload

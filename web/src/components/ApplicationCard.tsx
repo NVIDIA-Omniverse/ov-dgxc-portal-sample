@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -31,18 +31,22 @@ import {
   Text,
   Tooltip,
 } from "@mantine/core";
-import { IconChevronDown, IconAlertTriangle } from "@tabler/icons-react";
-import { ReactNode, useState } from "react";
+import { IconAlertTriangle, IconChevronDown } from "@tabler/icons-react";
 import type { SyntheticEvent } from "react";
-import { StreamingApp, AppStatus, StreamingAppVersion } from "../state/Apps";
+import { ReactNode, useState } from "react";
+import { AppStatus, StreamingApp, StreamingAppVersion } from "../state/Apps";
+import { defaultResolutionKey } from "../state/StreamResolution";
 import classes from "./ApplicationCard.module.css";
+import StreamResolutionSelect from "./StreamResolutionSelect";
 
 export interface ApplicationCardProps {
   app: StreamingApp;
 }
 
 export default function ApplicationCard({ app }: ApplicationCardProps) {
-  const [version, setVersion] = useState(app.latestVersion);
+  const [selectedVersionId, setSelectedVersionId] = useState(app.latestVersion.id);
+  const version = app.versions.find(v => v.id === selectedVersionId) ?? app.latestVersion;
+  const setVersion = (v: StreamingAppVersion) => setSelectedVersionId(v.id);
   const isDegraded = version.status === AppStatus.Degraded;
 
   if (isDegraded) {
@@ -68,6 +72,7 @@ interface ApplicationCardContentProps {
   app: StreamingApp;
   version: StreamingAppVersion;
   nameContent?: ReactNode;
+  resolutionSelect?: ReactNode;
   setVersion: (version: StreamingAppVersion) => void;
 }
 
@@ -92,7 +97,12 @@ function DegradedApplicationCard({
           version={version}
           setVersion={setVersion}
           nameContent={
-            <Group gap={"xs"} align="flex-start" wrap="nowrap" style={{ width: "100%" }}>
+            <Group
+              gap={"xs"}
+              align="flex-start"
+              wrap="nowrap"
+              style={{ width: "100%" }}
+            >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <ApplicationName title={app.title} />
               </div>
@@ -117,10 +127,12 @@ function ActiveApplicationCard({
   version,
   setVersion,
 }: ApplicationCardContentProps) {
+  const [resolution, setResolution] = useState(defaultResolutionKey);
+
   return (
     <Card
       component="a"
-      href={`/app/${version.id}/sessions`}
+      href={`/app/${version.id}/sessions?resolution=${resolution}`}
       target={"_blank"}
       radius={"sm"}
       classNames={{
@@ -133,6 +145,12 @@ function ActiveApplicationCard({
           app={app}
           version={version}
           setVersion={setVersion}
+          resolutionSelect={
+            <StreamResolutionSelect
+              value={resolution}
+              onChange={setResolution}
+            />
+          }
         />
       </Group>
     </Card>
@@ -143,6 +161,7 @@ function ApplicationCardContent({
   app,
   version,
   nameContent,
+  resolutionSelect,
   setVersion,
 }: ApplicationCardContentProps) {
   return (
@@ -150,24 +169,39 @@ function ApplicationCardContent({
       <Group
         gap={"sm"}
         justify={"space-between"}
-        align={"end"}
+        align={"flex-start"}
         p={"sm"}
         flex={"1"}
         style={{ overflow: "hidden" }}
       >
-        <Image src={app.icon} width={64} height={64} title={app.title} className={classes.cardIcon} />
+        <Image
+          src={app.icon}
+          width={64}
+          height={64}
+          title={app.title}
+          className={classes.cardIcon}
+        />
         <Stack gap={"3px"} flex={"1"} style={{ overflow: "hidden" }}>
-          <Text size={"sm"} className={classes.cardProductArea}>{app.productArea}</Text>
-          {nameContent ?? <ApplicationName title={app.title} />}
           <Text
-            size={"8pt"}
-            c={"dark.2"}
-            fw={"500"}
-            className={classes.cardVersion}
-            style={{ alignSelf: "end" }}
+            size={"sm"}
+            className={classes.cardProductArea}
+            style={{ whiteSpace: "nowrap" }}
           >
-            {version.name}
+            {app.productArea}
           </Text>
+          {nameContent ?? <ApplicationName title={app.title} />}
+          <Group gap={"xs"} justify="space-between" wrap="nowrap">
+            {resolutionSelect ?? <span />}
+            <Text
+              size={"8pt"}
+              c={"dark.2"}
+              fw={"500"}
+              className={classes.cardVersion}
+              style={{ whiteSpace: "nowrap" }}
+            >
+              {version.name}
+            </Text>
+          </Group>
         </Stack>
       </Group>
 
@@ -175,7 +209,7 @@ function ApplicationCardContent({
         <Menu.Target>
           <ActionIcon
             bg={"green"}
-            h={"auto"}
+            h={"100px"}
             className={classes.cardMenu}
             style={{ pointerEvents: "auto" }}
             onClick={(event) => {

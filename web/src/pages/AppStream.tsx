@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -57,6 +57,7 @@ import { StreamLoader } from "../components/StreamLoader";
 import { StreamError } from "../components/StreamError";
 import { useLatencyIndicator } from "../hooks/useLatencyIndicator";
 import { StreamLatencyIndicator } from "../components/StreamLatencyIndicator";
+import useStreamStorageApi from "../hooks/useStreamStorageApi";
 
 /**
  * Loads the information about the application with the specified ID
@@ -76,8 +77,8 @@ export default function AppStream() {
   const location = useLocation();
 
   const [searchParams] = useSearchParams();
-  // Extract extra payload that could have been passed from a deep-link
   const payload = searchParams.get("payload") ?? "";
+  const resolution = searchParams.get("resolution") ?? "";
 
   const { isLoading, data, isError, error } = useQuery({
     queryKey: ["streaming-app", appId],
@@ -117,7 +118,7 @@ export default function AppStream() {
     if (data.authType === AuthenticationType.nucleus) {
       if (!nucleus.established) {
         const to = `${location.pathname}${location.search}`;
-        return <Navigate to={`/nucleus/authenticate?redirectAfter=${to}`} />;
+        return <Navigate to={`/nucleus/authenticate?redirectAfter=${encodeURIComponent(to)}`} />;
       } else if (!nucleus.accessToken) {
         return (
           <Stack gap={0} style={{ height: "100vh" }}>
@@ -130,7 +131,12 @@ export default function AppStream() {
       }
     }
     return (
-      <AppStreamSession app={data} payload={payload} sessionId={sessionId} />
+      <AppStreamSession
+        app={data}
+        payload={payload}
+        resolution={resolution}
+        sessionId={sessionId}
+      />
     );
   }
 
@@ -147,21 +153,28 @@ export default function AppStream() {
 interface StreamSessionProps {
   app: StreamingApp;
   payload?: string;
+  resolution?: string;
   sessionId: string;
 }
 
-function AppStreamSession({ app, payload, sessionId }: StreamSessionProps) {
+function AppStreamSession({ app, payload, resolution, sessionId }: StreamSessionProps) {
   const navigate = useNavigate();
 
-  const [rtd, recordRtd] = useLatencyIndicator();
+  const [rtd, recordRtd, resetRtd] = useLatencyIndicator();
+  const { handleCustomEvent } = useStreamStorageApi();
+
   const stream = useStream({
     app,
     payload,
+    resolution,
     sessionId,
     onStreamStats: recordRtd,
+    onCustomEvent: (message) => void handleCustomEvent(message),
+    onStreamEnd: resetRtd,
   });
   const streamStart = useStreamStart(app.id, payload);
   useStreamEndNotification(sessionId);
+
 
   const [fullScreen, setFullScreen] = useState(false);
   const videoElement = useRef<HTMLVideoElement>(null);

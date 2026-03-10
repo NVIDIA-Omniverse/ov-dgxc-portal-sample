@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -163,9 +163,20 @@ class PublishedApp(_PublishedApp):
     media_port: Optional[int] = pydantic.Field(default=None, examples=[None])
 
 
+class NvcfDeploymentDetails(PydanticBaseModel):
+    """Deployment details retrieved from NVCF for a specific function version."""
+    instance_type: Optional[str] = None
+    gpu: Optional[str] = None
+    cluster: Optional[str] = None
+    min_instances: Optional[int] = None
+    max_instances: Optional[int] = None
+    max_request_concurrency: Optional[int] = None
+
+
 class PublishedAppResponse(PublishedApp):
     id: str
     status: NvcfFunctionStatus = NvcfFunctionStatus.unknown
+    deployment: Optional[NvcfDeploymentDetails] = None
 
 
 class SessionStatus(str, Enum):
@@ -206,6 +217,7 @@ class SessionModel(Model):
     status = fields.CharField(max_length=50, db_index=True)
     start_date = fields.DatetimeField(auto_now_add=True)
     end_date = fields.DatetimeField(null=True)
+    duration = fields.IntField(default=0)
 
     class Meta:
         table = "session"

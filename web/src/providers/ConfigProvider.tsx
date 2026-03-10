@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -73,10 +73,21 @@ const Config = z.object({
     sessionEndNotificationDuration: z.number().default(30),
   }),
 
+  storageApi: z
+    .object({
+      // The URI of this application where the user will be redirected after
+      // authenticating on the USD Storage API
+      redirectUri: z.string().url(),
+    })
+    .optional(),
+
   userInterface: z.object({
     // The title displayed on the main page
-    title: z.string().default("Welcome to Omniverse!")
-  })
+    title: z.string().default("Welcome to Omniverse!"),
+
+    // Portal version displayed on the home page
+    version: z.string().optional(),
+  }),
 });
 
 export type Config = z.infer<typeof Config>;

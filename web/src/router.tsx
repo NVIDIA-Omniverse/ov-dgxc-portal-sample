@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -32,7 +32,9 @@ import AppStream from "./pages/AppStream";
 import NucleusAuthenticate from "./pages/NucleusAuthenticate";
 import NucleusSSO from "./pages/NucleusSSO";
 import AppStreamList from "./pages/AppStreamList";
-import { DeepLink } from "./pages/DeepLink.tsx";
+import { StorageApiAuthenticate } from "./pages/StorageApiAuthenticate";
+import { DeepLink } from "./pages/DeepLink";
+import About from "./pages/About";
 
 export const router = createBrowserRouter([
   {
@@ -56,6 +58,10 @@ export const router = createBrowserRouter([
         element: <NucleusSSO />,
       },
       {
+        path: "storage-api/openid",
+        element: <StorageApiAuthenticate />
+      },
+      {
         path: "app/:appId/sessions/:sessionId",
         element: <AppStream />,
       },
@@ -74,6 +80,10 @@ export const router = createBrowserRouter([
       {
         path: "sessions",
         element: <UserSessionList />,
+      },
+      {
+        path: "about",
+        element: <About />,
       },
       {
         path: "login",

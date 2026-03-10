@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -29,6 +29,18 @@ import { HttpError } from "../util/Errors";
  * Represents an application available for streaming.
  * One application may have multiple versions with different metadata.
  */
+/**
+ * Deployment details retrieved from NVCF for a specific function version.
+ */
+export interface NvcfDeploymentDetails {
+  instanceType?: string;
+  gpu?: string;
+  cluster?: string;
+  minInstances?: number;
+  maxInstances?: number;
+  maxRequestConcurrency?: number;
+}
+
 export interface StreamingApp {
   id: string;
   title: string;
@@ -54,6 +66,11 @@ export interface StreamingApp {
    * Specifies a port for the private endpoint for streaming.
    */
   mediaPort?: number;
+
+  /**
+   * NVCF deployment details for this function version.
+   */
+  deployment?: NvcfDeploymentDetails;
 
   /**
    * A list of application versions and their information.
@@ -209,6 +226,17 @@ interface StreamingAppResponseItem {
    * Specifies a port for the private endpoint for streaming.
    */
   media_port?: number;
+  /**
+   * NVCF deployment details for this function version.
+   */
+  deployment?: {
+    instance_type?: string;
+    gpu?: string;
+    cluster?: string;
+    min_instances?: number;
+    max_instances?: number;
+    max_request_concurrency?: number;
+  };
 }
 
 export interface GetStreamingAppsParams {
@@ -335,6 +363,16 @@ export async function getStreamingApp({
         versions: [],
         mediaServer: body.media_server,
         mediaPort: body.media_port,
+        deployment: body.deployment
+          ? {
+              instanceType: body.deployment.instance_type,
+              gpu: body.deployment.gpu,
+              cluster: body.deployment.cluster,
+              minInstances: body.deployment.min_instances,
+              maxInstances: body.deployment.max_instances,
+              maxRequestConcurrency: body.deployment.max_request_concurrency,
+            }
+          : undefined,
       };
     } else {
       return null;

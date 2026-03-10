@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -31,13 +31,14 @@ import {
 } from "react-oidc-context";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useConfig } from "../hooks/useConfig";
+import { renewTokenWithLock } from "../util/tokenRenewal";
 
 export interface AuthProviderProps {
   children?: ReactNode;
 }
 
 Log.setLogger(console);
-Log.setLevel(Log.DEBUG);
+Log.setLevel(import.meta.env.DEV ? Log.DEBUG : Log.INFO);
 
 type AuthMessage = { type: "logout" } | { type: "renewal" };
 
@@ -97,57 +98,13 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const onRenew = () => {
-      const uuid = crypto.randomUUID();
-      const timestamp = () => new Date().toISOString();
-      console.info(
-        `[${timestamp()}] [${uuid}] Token expiring, requesting renewal lock...`,
-      );
-
-      void navigator.locks.request(
-        "auth-renewal",
-        { mode: "exclusive", ifAvailable: true },
-        async (lock) => {
-          if (!lock) {
-            console.info(
-              `[${timestamp()}] [${uuid}] Lock not available - another tab is renewing session`,
-            );
-            return;
-          }
-
-          console.info(
-            `[${timestamp()}] [${uuid}] Lock acquired - starting renewal...`,
-          );
-          try {
-            const user = await auth.userManager?.signinSilent();
-            if (user) {
-              console.info(
-                `[${timestamp()}] [${uuid}] Session renewed successfully`,
-              );
-              channel.postMessage({ type: "renewal" } as AuthMessage);
-
-              const cooldown = 30 * 1000; // 30 seconds
-              console.info(
-                `[${timestamp()}] [${uuid}] Hold the lock for ${cooldown / 1000} seconds to prevent duplicate renewals.`,
-              );
-              await new Promise((resolve) => setTimeout(resolve, cooldown));
-            } else {
-              console.warn(
-                `[${timestamp()}] [${uuid}] Silent renewal returned no user - redirecting to login`,
-              );
-              await auth.userManager?.signinRedirect();
-            }
-          } catch (error) {
-            console.error(
-              `[${timestamp()}] [${uuid}] Token renewal failed:`,
-              error,
-            );
-          } finally {
-            console.info(
-              `[${timestamp()}] [${uuid}] Renewal complete - releasing lock`,
-            );
-          }
+      void renewTokenWithLock({
+        lockName: "auth-renewal",
+        signinSilent: () => auth.userManager?.signinSilent() ?? Promise.resolve(null),
+        onSuccess: () => {
+          channel.postMessage({ type: "renewal" } as AuthMessage);
         },
-      );
+      });
     };
 
     auth.userManager?.events.addAccessTokenExpiring(onRenew);

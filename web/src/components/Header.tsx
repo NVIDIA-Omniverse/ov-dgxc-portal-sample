@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -35,6 +35,7 @@ import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
 import {
   IconChevronDown,
   IconDeviceDesktop,
+  IconInfoCircle,
   IconLogout,
 } from "@tabler/icons-react";
 import { useAuth } from "react-oidc-context";
@@ -95,6 +96,15 @@ export default function Header() {
               target={location.pathname === "/sessions" ? "" : "_blank"}
             >
               Sessions
+            </Menu.Item>
+            <Menu.Item
+              disabled={location.pathname === "/about"}
+              component={NavLink}
+              leftSection={<IconInfoCircle />}
+              to={"/about"}
+              target={location.pathname === "/about" ? "" : "_blank"}
+            >
+              About
             </Menu.Item>
             <Menu.Item leftSection={<IconLogout />} onClick={logOut}>
               Log out

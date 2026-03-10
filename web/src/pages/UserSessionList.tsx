@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -34,6 +34,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import LoaderError from "../components/LoaderError";
@@ -42,6 +43,8 @@ import SessionDuration from "../components/SessionDuration";
 import SessionStatus from "../components/SessionStatus";
 import SessionStatusFilter from "../components/SessionStatusFilter";
 import SessionTerminateButton from "../components/SessionTerminateButton";
+import SortableTableHeader from "../components/SortableTableHeader";
+import { SortDirection, SortState, toOrderByParam } from "../state/Sorting";
 import { useConfig } from "../hooks/useConfig";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { getSessions, StreamingSession } from "../state/Sessions";
@@ -78,9 +81,34 @@ export default function UserSessionList() {
     setParams(params);
   }
 
+  const sortField = params.get("sort") ?? null;
+  const sortDir = (params.get("dir") as SortDirection) ?? null;
+  const sort: SortState = { field: sortField, direction: sortDir };
+
+  const handleSort = useCallback(
+    (field: string) => {
+      const next = new URLSearchParams(params);
+      if (sort.field !== field) {
+        next.set("sort", field);
+        next.set("dir", "asc");
+      } else if (sort.direction === "asc") {
+        next.set("sort", field);
+        next.set("dir", "desc");
+      } else {
+        next.delete("sort");
+        next.delete("dir");
+      }
+      next.set("page", "1");
+      setParams(next);
+    },
+    [params, sort.field, sort.direction, setParams],
+  );
+
+  const orderBy = toOrderByParam(sort);
+
   const { isLoading, error, data } = useQuery({
-    queryKey: ["sessions", page, status],
-    queryFn: async () => getSessions({ config, page, status }),
+    queryKey: ["sessions", page, status, orderBy],
+    queryFn: async () => getSessions({ config, page, status, orderBy }),
   });
 
   return (
@@ -118,14 +146,45 @@ export default function UserSessionList() {
               <Table withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th maw={300}>Session ID</Table.Th>
+                    <SortableTableHeader
+                      label="Session ID"
+                      field="id"
+                      sort={sort}
+                      onSort={handleSort}
+                      maw={300}
+                    />
                     {isAdmin && <Table.Th>NVCF ID</Table.Th>}
-                    <Table.Th>App</Table.Th>
-                    <Table.Th>User</Table.Th>
+                    <SortableTableHeader
+                      label="App"
+                      field="app"
+                      sort={sort}
+                      onSort={handleSort}
+                    />
+                    <SortableTableHeader
+                      label="User"
+                      field="user_name"
+                      sort={sort}
+                      onSort={handleSort}
+                    />
                     <Table.Th w={125}>Status</Table.Th>
-                    <Table.Th>Start date</Table.Th>
-                    <Table.Th>End date</Table.Th>
-                    <Table.Th>Duration</Table.Th>
+                    <SortableTableHeader
+                      label="Start date"
+                      field="start_date"
+                      sort={sort}
+                      onSort={handleSort}
+                    />
+                    <SortableTableHeader
+                      label="End date"
+                      field="end_date"
+                      sort={sort}
+                      onSort={handleSort}
+                    />
+                    <SortableTableHeader
+                      label="Duration"
+                      field="duration"
+                      sort={sort}
+                      onSort={handleSort}
+                    />
                     <Table.Th></Table.Th>
                   </Table.Tr>
                 </Table.Thead>

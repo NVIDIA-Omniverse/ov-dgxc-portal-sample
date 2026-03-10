@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -27,7 +27,7 @@ import tomllib
 from dataclasses import dataclass, field
 from textwrap import dedent
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger(__name__)
 
 settings_path = os.getenv("SETTINGS_PATH", "settings.toml")
 
@@ -56,7 +56,10 @@ class Settings:
     """The endpoint used by the backend to talk to NVCF API."""
     nvcf_control_endpoint: str = "https://api.nvcf.nvidia.com"
 
-    """The endpoint used by the backend to get information about the NGC org."""
+    """
+    The endpoint used by the backend to get information about the NGC org 
+    and detailed information about deployments.
+    """
     ngc_endpoint: str = "https://api.ngc.nvidia.com"
 
     """NVIDIA Cloud Account Number of the NGC org."""
@@ -77,6 +80,7 @@ class Settings:
     """Specifies all origins allowed for cross-domain requests (CORS)."""
     allowed_origins: list[str] = field(
         default_factory=lambda: [
+            "http://localhost",
             "http://localhost:3180",
             "http://127.0.0.1:3180",
             "https://localhost:3180",
@@ -101,6 +105,16 @@ class Settings:
     https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
     """
     metadata_uri: str | None = None
+
+    """
+    The expected `iss` (issuer) claim value of accepted ID tokens.
+    Per OpenID Connect Core 3.1.3.7, the issuer claim MUST be validated
+    against the configured IdP. When left unset, the value advertised in the
+    OpenID Connect discovery document (`issuer`) is used as a fallback.
+    Set this explicitly to harden the portal against cross-tenant token
+    acceptance in shared-IdP or multi-tenant deployments.
+    """
+    issuer: str | None = None
 
     """The algorithm used by the IdP to generate ID tokens."""
     jwks_alg: str = "ES256"
@@ -136,6 +150,12 @@ class Settings:
 
     """Number of seconds to wait before settings are read again from disk."""
     watch_interval: int = 15
+
+    """
+    Number of days to retain stopped session data before automatic purging.
+    Set to 0 to disable purging.
+    """
+    session_retention_days: int = 30
 
     """Maximum size of incomplete HTTP events (headers) in bytes for h11. Default is 16KB."""
     h11_max_incomplete_event_size: int = 16 * 1024

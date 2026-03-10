@@ -8,6 +8,8 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "web-streaming-example.selectorLabels" . | nindent 6 }}
@@ -126,16 +128,25 @@ spec:
           persistentVolumeClaim:
             claimName: {{ include "web-streaming-example.fullname" . }}
         - name: backend-config
+          {{- if .Values.nvcf.existingSecret }}
+          secret:
+            secretName: {{ .Values.nvcf.existingSecret }}
+            items:
+              - key: "settings.toml"
+                path: "settings.toml"
+                mode: 0400
+          {{- else }}
           configMap:
             name: {{ include "web-streaming-example.fullname" . }}
             items:
               - key: "settings.toml"
                 path: "settings.toml"
                 mode: 0777
+          {{- end }}
         {{- if .Values.apiKeys.enabled }}
         - name: api-keys-secret
           secret:
-            secretName: {{ include "web-streaming-example.fullname" . }}-api-keys
+            secretName: {{ .Values.apiKeys.existingSecret | default (printf "%s-api-keys" (include "web-streaming-example.fullname" .)) }}
             items:
               - key: "api-keys.toml"
                 path: "api-keys.toml"

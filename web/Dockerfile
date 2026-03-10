@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -50,7 +50,7 @@ RUN apt-get update && \
 USER 101
 
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY ATTRIBUTIONS.md .
+COPY ATTRIBUTIONS.md /usr/share/nginx/html/ATTRIBUTIONS.md
 
 EXPOSE 8080
 

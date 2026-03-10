@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -39,6 +39,10 @@ nvcf:
   # The service API key generated on the NGC portal
   key: ""
 
+  # Name of an existing K8s Secret whose 'settings.toml' key will be mounted
+  # as the backend config. When set, nvcf.key and nvcf.ngcOrg are ignored.
+  existingSecret: ""
+
   # The endpoint used by the backend to talk to NVCF API
   controlEndpoint: "https://api.nvcf.nvidia.com"
 
@@ -48,7 +52,8 @@ nvcf:
   # Number of seconds to cache data pulled from NVCF API
   cacheTtl: 30
 
-  # The endpoint used by the backend to get information about the NGC org.
+  # The endpoint used by the backend to get information about the NGC org
+  # and detailed information about NVCF deployments.
   ngcEndpoint: "https://api.ngc.nvidia.com"
 
   # NVIDIA Cloud Account Number of the NGC org.
@@ -69,6 +74,14 @@ config:
     # The endpoint used to retrieve OpenID Connect configuration from the identity provider.
     # https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
     metadataUri: ""
+
+    # The expected `iss` (issuer) claim value of accepted ID tokens.
+    # Per OpenID Connect Core 3.1.3.7, the issuer claim MUST be validated
+    # against the configured IdP. When left empty, the value advertised in
+    # the OpenID Connect discovery document is used as a fallback.
+    # Set this explicitly to harden the portal against cross-tenant token
+    # acceptance in shared-IdP or multi-tenant deployments.
+    issuer: ""
 
     # The algorithm used by the IdP to generate ID tokens
     jwksAlg: "ES256"
@@ -100,6 +113,11 @@ config:
     # The title displayed on the main page.
     title: "Welcome to Omniverse!"
 
+  storageApi:
+    # The Customer Web App URL where the storage API IdP must redirect the user back.
+    # This is the URL used for the example. Must end with /openid
+    redirectUri: https://ovc-sample:3180/storage-api/openid
+
   # Maximum session duration in seconds before users get disconnected.
   sessionTtl: 28800
 
@@ -118,6 +136,10 @@ config:
   # therefore all NVCF functions should be created with the same session resume timeout matching the value below.
   # The specified value must be less or equal 300 seconds (5 minutes) which is the maximum NVCF session reconnect timeout.
   sessionIdleTimeout: 300
+
+  # Number of days to retain stopped session data before automatic purging.
+  # Set to 0 to disable purging.
+  sessionRetentionDays: 30
 
   # Maximum amount of allowed running sessions for each user per application
   maxAppInstancesCount: 3
@@ -149,6 +171,9 @@ config:
 apiKeys:
   # Whether to enable API key authentication
   enabled: false
+  # Name of an existing K8s Secret whose 'api-keys.toml' key will be used.
+  # When set, apiKeys.keys is ignored and no Secret is created by the chart.
+  existingSecret: ""
   # API keys configuration
   keys: []
     # - name: "admin-service"

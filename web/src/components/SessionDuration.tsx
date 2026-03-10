@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,6 +24,7 @@
 import {
   addSeconds,
   differenceInSeconds,
+  Duration,
   formatDuration,
   interval,
   intervalToDuration,
@@ -35,13 +36,23 @@ export interface SessionDurationProps {
   session: StreamingSession;
 }
 
+const DURATION_FORMAT: (keyof Duration)[] = ["days", "hours", "minutes"];
+
+function formatSeconds(totalSeconds: number) {
+  return formatDuration(intervalToDuration(interval(0, totalSeconds * 1000)), {
+    format: DURATION_FORMAT,
+  });
+}
+
 export default function SessionDuration({ session }: SessionDurationProps) {
   const config = useConfig();
   const now = new Date();
-  const duration = formatDuration(
-    intervalToDuration(interval(session.startDate, session.endDate ?? now)),
-    { format: ["hours", "minutes"] },
-  );
+
+  const elapsedSeconds =
+    session.status === "STOPPED"
+      ? session.duration
+      : differenceInSeconds(session.endDate ?? now, session.startDate);
+  const duration = formatSeconds(elapsedSeconds);
 
   const remaining = interval(
     now,
@@ -51,7 +62,7 @@ export default function SessionDuration({ session }: SessionDurationProps) {
     intervalToDuration(
       interval(now, addSeconds(session.startDate, config.sessions.maxTtl)),
     ),
-    { format: ["hours", "minutes"] },
+    { format: DURATION_FORMAT },
   );
   const diff = differenceInSeconds(remaining.end, remaining.start);
   return (

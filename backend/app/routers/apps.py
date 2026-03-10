@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -31,11 +31,16 @@ from app.auth import admin_only, authenticated_only
 from app.models import (
     PublishedAppResponse, PublishedAppModel, PublishedApp, NvcfFunctionStatus
 )
-from app.nvcf import get_nvcf_functions, get_nvcf_function_status, \
-    nvcf_function_cache
+from app.nvcf import (
+    get_nvcf_functions,
+    get_nvcf_function_status,
+    get_nvcf_deployment_details,
+    nvcf_function_cache,
+    nvcf_deployment_cache,
+)
 
 router = APIRouter()
-logger = logging.getLogger('uvicorn.error')
+logger = logging.getLogger(__name__)
 
 
 @router.get(
@@ -112,6 +117,11 @@ async def get_app_info(app_id: str):
         app.function_id,
         app.function_version_id
     )
+
+    app.deployment = await get_nvcf_deployment_details(
+        app.function_id, app.function_version_id
+    )
+
     return app
 
 
@@ -140,6 +150,7 @@ async def publish_app(app_id: str, app: PublishedApp):
     result = await PublishedAppResponse.from_tortoise_orm(app_model)
 
     nvcf_function_cache.clear()
+    nvcf_deployment_cache.clear()
     functions = await get_nvcf_functions()
 
     result.status = get_nvcf_function_status(
@@ -181,3 +192,4 @@ async def delete_app(app_id: str):
         )
 
     nvcf_function_cache.clear()
+    nvcf_deployment_cache.clear()

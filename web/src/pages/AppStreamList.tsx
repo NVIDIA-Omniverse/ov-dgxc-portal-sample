@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -61,8 +61,8 @@ export default function AppStreamList() {
   const { appId = "" } = useParams<{ appId: string }>();
 
   const [searchParams] = useSearchParams();
-  // Extract extra payload that could have been passed from a deep-link
   const payload = searchParams.get("payload") ?? "";
+  const resolution = searchParams.get("resolution") ?? "";
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["streaming-app", appId],
@@ -118,7 +118,7 @@ export default function AppStreamList() {
     const href = `${location.pathname}${location.search}`;
     return (
       <Navigate
-        to={`/nucleus/authenticate?redirectAfter=${href}`}
+        to={`/nucleus/authenticate?redirectAfter=${encodeURIComponent(href)}`}
       />
     );
   }
@@ -135,6 +135,7 @@ export default function AppStreamList() {
           <AppStreamListModal
             appId={appId}
             payload={payload}
+            resolution={resolution}
             query={query}
             onSessionCancel={cancelStream}
           />
@@ -147,16 +148,18 @@ export default function AppStreamList() {
 function AppStreamListModal({
   appId,
   payload,
+  resolution,
   query,
   onSessionCancel,
 }: {
   appId: string;
   payload?: string;
+  resolution?: string;
   query: UseQueryResult<StreamingSessionPage>;
   onSessionCancel: () => void;
 }) {
   const auth = useAuth();
-  const streamStart = useStreamStart(appId, payload);
+  const streamStart = useStreamStart(appId, payload, resolution);
   const startNewSession = useCallbackRef(() => {
     notifications.show({
       id: streamStartNotification,

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -20,6 +20,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 from .apps import router as apps_router
+from .deployment import router as deployment_router
 from .sessions import router as sessions_router
 from .pages import router as pages_router
 from .users import router as users_router

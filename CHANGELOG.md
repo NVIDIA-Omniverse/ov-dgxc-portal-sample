@@ -1,5 +1,23 @@
 # Omniverse on DGX Cloud - Portal Sample Changelog
 
+## Version 1.5.0 - May 2026
+
+- Support USD Storage API authentication - allow users to add new connections to USD Storage API deployments during streaming sessions and automatically refresh USD Storage API sessions
+- Fixed an issue where users could have been redirected to the identity provider during a streaming session
+- Allow users to request a stream resolution before starting a streaming session
+- Hide streaming latency indicator when stream is stopped or terminated
+- Fixed an issue where application cards were not automatically updated to reflect a `degraded` function status
+- Support ordering sessions by ID, app, user, start date, end date and duration on the session list page
+- Purge stale session data from the database after configured retention
+- Added an about page to display the portal deployment settings
+- Display deployment details on the application info page
+- Update `@nvidia/ov-web-rtc` (previously known as `@nvidia/web-streaming-library`) to version 6.2.2
+- Display a notification when the browser does not support the HEVC/H.265 codec required for 4K streaming
+- Fit the stream resolution to the browser window to avoid letterboxing in non-16:9 layouts (requires a resize-enabled streaming application)
+- Emit session end metrics when idle sessions are terminated
+- Validate JWT iss claim to prevent cross-tenant token acceptance
+- Add Page info to application deployment details page
+
 ## Version 1.4.2 - March 2026
 
 - Display degraded applications on the main page with disabled state, warning indicator, and per-version status tracking
@@ -25,8 +43,8 @@
 
 - Added 'Deep Link' functionality for sharing a scene and other attributes (e.g., camera position) with other streaming users
 - Added configuration for changing the home page title
-- Update ``fastapi`` and ``starlette`` dependencies for Python backend
-- Added ``DEGRADING`` status for NVCF streaming functions
+- Update fastapi and starlette dependencies for Python backend
+- Add "DEGRADING" status for NVCF streaming functions
 - Remove `session.id` and `session.duration.seconds` attributes to reduce metric cardinality
 - Invalidate NVCF function status cache when applications are added or removed from the portal
 - Fixed an error that could occur on the home page if displayed applications used non-semantic versioning

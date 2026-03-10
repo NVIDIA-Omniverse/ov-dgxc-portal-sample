@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -31,7 +31,7 @@ from typing import Annotated
 
 import httpx
 from fastapi import (
-    APIRouter, Query, Depends, Request, Response
+    APIRouter, HTTPException, Query, Depends, Request, Response
 )
 from fastapi.params import Cookie
 from starlette import status
@@ -51,7 +51,16 @@ from app.observability import metrics
 from app.settings import settings
 
 router = APIRouter()
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger(__name__)
+
+SESSION_ORDER_FIELDS = {
+    "id": "id",
+    "app": "app__title",
+    "user_name": "user_name",
+    "start_date": "start_date",
+    "end_date": "end_date",
+    "duration": "duration",
+}
 
 # Stores a mapping between session id and the corresponding client websocket.
 session_websockets: dict[str, WebSocket] = {}
@@ -98,10 +107,32 @@ async def watch_idle_sessions():
         sessions = disconnected_sessions + orphaned_sessions
 
         logger.debug(f"Found {len(sessions)} idle sessions.")
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
         for session in sessions:
             logger.debug(f"[{session.id}] Stop as idle.")
             session.status = SessionStatus.stopped
+            session.duration = int(((session.end_date or now) - session.start_date).total_seconds())
             await session.save()
+            metrics.emit_session_end_metrics(session)
+        await asyncio.sleep(settings.session_watch_interval)
+
+
+async def watch_session_data_purge():
+    """Periodically deletes stopped session records older than the configured retention period."""
+    while True:
+        retention_days = settings.session_retention_days
+        if retention_days > 0:
+            cutoff = (
+                datetime.datetime.now(datetime.timezone.utc) -
+                datetime.timedelta(days=retention_days)
+            )
+            deleted_count = await SessionModel.filter(
+                status=SessionStatus.stopped.value,
+                start_date__lte=cutoff,
+            ).delete()
+            if deleted_count:
+                logger.info(f"Purged {deleted_count} stopped session(s) older than {retention_days} days.")
+
         await asyncio.sleep(settings.session_watch_interval)
 
 
@@ -241,6 +272,7 @@ async def start_stream(
                         user_name=user.username,
                         status=SessionStatus.idle,
                         app=app,
+                        duration=0,
                     )
                     session = SessionResponse.model_validate(session_model, from_attributes=True)
                     content = session.model_dump_json()
@@ -348,20 +380,10 @@ async def end_session(session: SessionModel, reason: str) -> Response:
 
             session.status = SessionStatus.stopped
             session.end_date = datetime.datetime.now(tz=datetime.timezone.utc)
+            session.duration = int((session.end_date - session.start_date).total_seconds())
             await session.save()
 
-
-            duration = session.end_date - session.start_date
-
-            attrs = {
-                "session.app": session.app_id,
-                "session.user": session.user_id,
-                "session.username": session.user_name,
-                "nvcf.function_id": str(session.function_id),
-                "nvcf.function_version_id": str(session.function_version_id),
-            }
-            metrics.session_end.add(1, attrs)
-            metrics.session_duration.record(duration.seconds, attrs)
+            metrics.emit_session_end_metrics(session)
 
         if response.status_code == status.HTTP_404_NOT_FOUND:
             # The session with the specified nvcf_request_id does not exist,
@@ -478,6 +500,9 @@ async def connect_to_stream(
 
         # Reset the end date if user reconnects to the session
         session.end_date = None
+        session.duration = int(
+            (datetime.datetime.now(tz=datetime.timezone.utc) - session.start_date).total_seconds()
+        )
         await session.save()
 
         query_params = {**websocket.query_params}
@@ -603,6 +628,7 @@ async def connect_to_stream(
             # Otherwise, other endpoints have updated the status already.
             session.status = SessionStatus.idle
             session.end_date = datetime.datetime.now(tz=datetime.timezone.utc)
+            session.duration = int((session.end_date - session.start_date).total_seconds())
             await session.save()
 
         # Remove websocket from memory
@@ -650,8 +676,20 @@ async def get_sessions(
     filtered_app: Annotated[str, Query(alias="app_id")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=5)] = 25,
+    order_by: Annotated[str, Query()] = "-start_date",
 ):
-    queryset = SessionModel.all().order_by("-start_date")
+    descending = order_by.startswith("-")
+    field_name = order_by.lstrip("-")
+
+    if field_name not in SESSION_ORDER_FIELDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid order_by field: '{field_name}'. "
+                   f"Allowed fields: {', '.join(SESSION_ORDER_FIELDS.keys())}",
+        )
+
+    queryset = SessionModel.all()
+
     if filtered_status:
         if filtered_status == SessionStatus.alive:
             # "alive" is a special status that represents sessions that are
@@ -672,6 +710,9 @@ async def get_sessions(
         queryset = queryset.filter(user_id=user.sub)
 
     total_size = await queryset.count()
+
+    order_prefix = "-" if descending else ""
+    queryset = queryset.order_by(f"{order_prefix}{SESSION_ORDER_FIELDS[field_name]}")
 
     results = await (
         queryset.offset((page - 1) * page_size)

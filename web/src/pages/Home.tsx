@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -95,7 +95,9 @@ export default function Home() {
           </LoaderError>
         ) : appsByPages?.size ? (
           <Group align={"start"} justify={"stretch"} wrap={"nowrap"}>
-            <ApplicationPages pages={pageNames} selectedPage={selectedPage} />
+            <Stack gap={"xs"}>
+              <ApplicationPages pages={pageNames} selectedPage={selectedPage} />
+            </Stack>
             <Stack flex={1}>
               {Object.entries(categories).map(([category, apps]) => (
                 <Card key={category} flex={1} radius={0} withBorder>

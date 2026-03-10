@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -19,12 +19,12 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-if [ -z "$CONTENT_CACHE_SERVER" ]; then
+if [[ -z "$CONTENT_CACHE_SERVER" ]]; then
   echo "CONTENT_CACHE_SERVER is not set, using the default value: https://lft.ucc.cluster.local:443"
   CONTENT_CACHE_SERVER="https://lft.ucc.cluster.local:443"
 fi
 
-if [ -z "$DDCS_SERVER" ]; then
+if [[ -z "$DDCS_SERVER" ]]; then
   echo "DDCS_SERVER is not set, using the default value: ddcs.ddcs.cluster.local:3010"
   DDCS_SERVER="ddcs.ddcs.cluster.local:3010"
 fi

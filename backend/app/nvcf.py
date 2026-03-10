@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -26,13 +26,14 @@ import httpx
 from asyncache import cached
 from cachetools import TTLCache
 
-from app.models import NvcfFunctionStatus, NvcfFunctions
+from app.models import NvcfFunctionStatus, NvcfFunctions, NvcfDeploymentDetails
 from app.settings import settings
 
-logger = logging.getLogger('uvicorn.error')
+logger = logging.getLogger(__name__)
 
 
 nvcf_function_cache = TTLCache(maxsize=1, ttl=settings.nvcf_cache_ttl)
+nvcf_deployment_cache = TTLCache(maxsize=128, ttl=settings.nvcf_cache_ttl)
 
 
 @cached(nvcf_function_cache)
@@ -90,3 +91,56 @@ def get_nvcf_function_status(
         return NvcfFunctionStatus(function["status"])
     else:
         return NvcfFunctionStatus.unknown
+
+
+@cached(nvcf_deployment_cache)
+async def get_nvcf_deployment_details(
+    function_id: str | uuid.UUID,
+    function_version_id: str | uuid.UUID,
+) -> NvcfDeploymentDetails | None:
+    """
+    Calls NGC API to get deployment details for a specific function version.
+    Returns None if the details cannot be retrieved.
+
+    This function caches the results for the time configured with
+    NVCF_CACHE_TTL environment variable (seconds).
+    """
+    if not settings.nvcf_api_key:
+        logger.error(
+            "Failed to get NVCF deployment details - API key is not configured."
+        )
+        return None
+
+    fid = str(function_id)
+    fvid = str(function_version_id)
+
+    logger.info(f"Get fresh deployment details for {fid}/{fvid}...")
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{settings.ngc_endpoint}"
+            f"/v2/nvcf/deployments/functions/{fid}/versions/{fvid}",
+            headers={
+                "Authorization": f"Bearer {settings.nvcf_api_key}"
+            }
+        )
+        if response.is_success:
+            deployment = response.json().get("deployment", {})
+            specs = deployment.get("deploymentSpecifications", [])
+            if not specs:
+                return NvcfDeploymentDetails()
+            spec = specs[0]
+            clusters = spec.get("clusters", [])
+            return NvcfDeploymentDetails(
+                instance_type=spec.get("instanceType"),
+                gpu=spec.get("gpu"),
+                cluster=clusters[0] if clusters else None,
+                min_instances=spec.get("minInstances"),
+                max_instances=spec.get("maxInstances"),
+                max_request_concurrency=spec.get("maxRequestConcurrency"),
+            )
+
+        logger.error(
+            f"Failed to get NVCF deployment details for "
+            f"{fid}/{fvid}: HTTP {response.status_code} {response.text}"
+        )
+        return None
