@@ -1,5 +1,13 @@
 # Omniverse on DGX Cloud - Portal Sample Changelog
 
+## Version 1.5.1 - June 2026
+
+- Added `EXPIRED` and `FAILED` statuses to track how streaming sessions ended
+- Record the last error reported for a streaming session and allow users to copy it from the `FAILED` badge
+- Added an MCP server exposing Sample Portal application tools (publish, remove, and inspect streaming apps) with an OAuth broker implementing PKCE and dynamic client registration for MCP clients, and a database migration for OAuth state
+- Added agent skills for publishing, removing, and checking streaming apps, checking NVCF functions, and diagnosing streaming issues
+- Added streaming issue documentation covering `ov-web-rtc` error codes, build/package failures, NVCF deployment(s), portal registration(s), and Sample Portal UI troubleshooting
+
 ## Version 1.5.0 - May 2026
 
 - Support USD Storage API authentication - allow users to add new connections to USD Storage API deployments during streaming sessions and automatically refresh USD Storage API sessions

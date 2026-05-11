@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check NVCF Function"
+  short_description: "Inspect NVCF function ID and version via API"
+  default_prompt: "Use $check-nvcf-function to fetch status, container, endpoints, and deployment details for an NVCF function ID and function version ID."

@@ -102,10 +102,20 @@ export default function SessionStatusFilter({
   );
 }
 
-const statuses = ["ACTIVE", "CONNECTING", "IDLE", "STOPPED"] as const;
+const statuses = [
+  "ACTIVE",
+  "CONNECTING",
+  "IDLE",
+  "STOPPED",
+  "EXPIRED",
+  "FAILED",
+] as const;
 const statusDescription = {
   ACTIVE: "A user is currently connected and using the session.",
   CONNECTING: "A user is connecting to the session.",
   IDLE: "A user has disconnected temporarily.",
-  STOPPED: "The session has been terminated.",
+  STOPPED: "The session was explicitly stopped by a user.",
+  EXPIRED:
+    "The session expired due to inactivity or exceeded its maximum lifetime.",
+  FAILED: "The session failed due to an upstream issue or application crash.",
 } as const;

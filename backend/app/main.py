@@ -47,6 +47,7 @@ async def configure_api(app: FastAPI):
     session_termination_task = None
     session_idle_termination_task = None
     session_data_purge_task = None
+    mcp_data_purge_task = None
     try:
         async with RegisterTortoise(
             app,
@@ -67,7 +68,20 @@ async def configure_api(app: FastAPI):
                 watch_session_data_purge()
             )
             session_data_purge_task.add_done_callback(watcher_task_done)
-            yield
+
+            if settings.mcp_enabled:
+                from app.mcp.server import get_mcp
+                from app.mcp.oauth import watch_mcp_data_purge
+
+                mcp_data_purge_task = asyncio.create_task(
+                    watch_mcp_data_purge()
+                )
+                mcp_data_purge_task.add_done_callback(watcher_task_done)
+
+                async with get_mcp().session_manager.run():
+                    yield
+            else:
+                yield
     finally:
         if session_termination_task is not None:
             session_termination_task.cancel()
@@ -75,6 +89,8 @@ async def configure_api(app: FastAPI):
             session_idle_termination_task.cancel()
         if session_data_purge_task is not None:
             session_data_purge_task.cancel()
+        if mcp_data_purge_task is not None:
+            mcp_data_purge_task.cancel()
         settings.stop()
         api_keys.stop()
 
@@ -125,6 +141,12 @@ api.include_router(deployment_router, tags=["deployment"])
 api.include_router(sessions_router, tags=["sessions"])
 api.include_router(pages_router, tags=["pages"])
 api.include_router(users_router, tags=["users"])
+
+
+if settings.mcp_enabled:
+    from app.mcp.server import mount_mcp
+
+    mount_mcp(api)
 
 
 def start():

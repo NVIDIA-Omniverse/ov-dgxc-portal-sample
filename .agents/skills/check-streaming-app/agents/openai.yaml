@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check Streaming App"
+  short_description: "Look up a portal streaming app and NVCF status"
+  default_prompt: "Use $check-streaming-app to fetch portal app details by app_id or NVCF function/version IDs."

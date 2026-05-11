@@ -21,15 +21,67 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-import { Badge, BadgeProps } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  BadgeProps,
+  CopyButton,
+  Tooltip,
+} from "@mantine/core";
+import { IconCheck, IconCopy } from "@tabler/icons-react";
 import { StreamingSession } from "../state/Sessions";
 
 export interface SessionStatusProps {
   status: StreamingSession["status"];
+  /**
+   * Optional error message recorded against the session. When present and
+   * the status is `FAILED`, an inline copy button is rendered next to the
+   * status badge so users / administrators can grab the message quickly.
+   */
+  error?: StreamingSession["error"];
 }
 
-export default function SessionStatus({ status }: SessionStatusProps) {
-  return <Badge color={getStatusColor(status)}>{status}</Badge>;
+export default function SessionStatus({ status, error }: SessionStatusProps) {
+  const showCopyError = status === "FAILED" && !!error;
+
+  return (
+    <Badge
+      color={getStatusColor(status)}
+      pr={showCopyError ? 4 : undefined}
+      rightSection={
+        showCopyError ? <CopyErrorButton error={error ?? ""} /> : undefined
+      }
+    >
+      {status}
+    </Badge>
+  );
+}
+
+function CopyErrorButton({ error }: { error: string }) {
+  return (
+    <CopyButton value={error} timeout={2000}>
+      {({ copied, copy }) => (
+        <Tooltip
+          label={copied ? "Copied" : "Copy error"}
+          withArrow
+          position={"right"}
+        >
+          <ActionIcon
+            color={"white"}
+            size={"xs"}
+            variant={"transparent"}
+            aria-label={"Copy error"}
+            onClick={(event) => {
+              event.stopPropagation();
+              copy();
+            }}
+          >
+            {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+          </ActionIcon>
+        </Tooltip>
+      )}
+    </CopyButton>
+  );
 }
 
 function getStatusColor(
@@ -43,8 +95,11 @@ function getStatusColor(
     case "IDLE":
       return "orange";
     case "STOPPED":
+    case "EXPIRED":
       return "gray";
-    default:
+    case "FAILED":
       return "red";
+    default:
+      return "gray";
   }
 }

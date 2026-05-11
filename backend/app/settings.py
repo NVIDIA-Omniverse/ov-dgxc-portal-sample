@@ -160,6 +160,35 @@ class Settings:
     """Maximum size of incomplete HTTP events (headers) in bytes for h11. Default is 16KB."""
     h11_max_incomplete_event_size: int = 16 * 1024
 
+    """Enables the embedded MCP server mounted at mcp_path."""
+    mcp_enabled: bool = False
+
+    """Public URL of the MCP endpoint, used as the OAuth resource identifier."""
+    mcp_resource_url: str | None = None
+
+    """Path where the MCP Streamable HTTP endpoint is mounted."""
+    mcp_path: str = "/mcp"
+
+    """OAuth scopes required to access the MCP endpoint."""
+    mcp_required_scopes: list[str] = field(default_factory=list)
+
+    """
+    Client ID of the confidential client the MCP broker uses to authenticate
+    users against the portal identity provider.
+    """
+    mcp_upstream_client_id: str | None = None
+
+    """Client secret paired with mcp_upstream_client_id."""
+    mcp_upstream_client_secret: str | None = None
+
+    """Scopes the MCP broker requests from the identity provider."""
+    mcp_upstream_scopes: list[str] = field(
+        default_factory=lambda: ["openid", "profile", "email"]
+    )
+
+    """Path where the identity provider redirects back to the MCP broker."""
+    mcp_callback_path: str = "/oauth/callback"
+
     __listening_task: asyncio.Task | None = None
 
     @classmethod
@@ -204,6 +233,19 @@ class Settings:
     def validate(self):
         if not self.unsafe_disable_auth and not self.metadata_uri:
             raise ValueError("You must specify a metadata URI.")
+
+        if self.mcp_enabled and not self.unsafe_disable_auth:
+            if not self.mcp_resource_url:
+                raise ValueError(
+                    "You must specify mcp_resource_url when MCP is enabled."
+                )
+            if not (
+                self.mcp_upstream_client_id and self.mcp_upstream_client_secret
+            ):
+                raise ValueError(
+                    "You must specify mcp_upstream_client_id and "
+                    "mcp_upstream_client_secret when MCP is enabled."
+                )
 
         if self.session_ttl > MAX_SESSION_TTL:
             logger.warning(

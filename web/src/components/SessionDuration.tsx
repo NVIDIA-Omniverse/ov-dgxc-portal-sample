@@ -30,7 +30,7 @@ import {
   intervalToDuration,
 } from "date-fns";
 import { useConfig } from "../hooks/useConfig";
-import { StreamingSession } from "../state/Sessions";
+import { isSessionEnded, StreamingSession } from "../state/Sessions";
 
 export interface SessionDurationProps {
   session: StreamingSession;
@@ -48,10 +48,10 @@ export default function SessionDuration({ session }: SessionDurationProps) {
   const config = useConfig();
   const now = new Date();
 
-  const elapsedSeconds =
-    session.status === "STOPPED"
-      ? session.duration
-      : differenceInSeconds(session.endDate ?? now, session.startDate);
+  const ended = isSessionEnded(session.status);
+  const elapsedSeconds = ended
+    ? session.duration
+    : differenceInSeconds(session.endDate ?? now, session.startDate);
   const duration = formatSeconds(elapsedSeconds);
 
   const remaining = interval(
@@ -68,7 +68,7 @@ export default function SessionDuration({ session }: SessionDurationProps) {
   return (
     <>
       {duration}
-      {session.status !== "STOPPED" && diff > 0 && ` (${timeRemaining} left)`}
+      {!ended && diff > 0 && ` (${timeRemaining} left)`}
     </>
   );
 }

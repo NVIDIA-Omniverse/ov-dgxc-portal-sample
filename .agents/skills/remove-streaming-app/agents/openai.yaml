@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remove Streaming App"
+  short_description: "Find and remove a published portal app"
+  default_prompt: "Use $remove-streaming-app to find a portal app by app ID or NVCF function/version and remove it after confirmation."

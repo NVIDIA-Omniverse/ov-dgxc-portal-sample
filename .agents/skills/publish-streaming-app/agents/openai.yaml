@@ -1,0 +1,4 @@
+interface:
+  display_name: "Publish Streaming App"
+  short_description: "Publish or update a portal streaming app"
+  default_prompt: "Use $publish-streaming-app to publish or update a portal app from an NVCF function ID and function version ID."

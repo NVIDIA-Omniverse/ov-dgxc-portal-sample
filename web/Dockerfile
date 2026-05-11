@@ -44,6 +44,9 @@ RUN apt-get update && \
     libpam-modules \
     libpam-runtime \
     libpam0g && \
+    # remove unused HEIF/AVIF/H.265 image codecs to drop their CVEs
+    apt-get purge -y libheif1 libde265-0 && \
+    apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
 # Switch back to the original unprivileged user (UID 101)

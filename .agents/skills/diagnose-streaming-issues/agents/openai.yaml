@@ -1,0 +1,4 @@
+interface:
+  display_name: "Diagnose Streaming Issues"
+  short_description: "Triage Kit/NVCF/portal streaming failures"
+  default_prompt: "Use $diagnose-streaming-issues to triage this streaming problem."

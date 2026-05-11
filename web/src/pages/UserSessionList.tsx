@@ -47,7 +47,11 @@ import SortableTableHeader from "../components/SortableTableHeader";
 import { SortDirection, SortState, toOrderByParam } from "../state/Sorting";
 import { useConfig } from "../hooks/useConfig";
 import { useCurrentUser } from "../hooks/useCurrentUser";
-import { getSessions, StreamingSession } from "../state/Sessions";
+import {
+  getSessions,
+  isSessionEnded,
+  StreamingSession,
+} from "../state/Sessions";
 
 /**
  * The web page to see a list of streaming sessions.
@@ -166,7 +170,7 @@ export default function UserSessionList() {
                       sort={sort}
                       onSort={handleSort}
                     />
-                    <Table.Th w={125}>Status</Table.Th>
+                    <Table.Th maw={150}>Status</Table.Th>
                     <SortableTableHeader
                       label="Start date"
                       field="start_date"
@@ -224,7 +228,10 @@ export default function UserSessionList() {
                       </Table.Td>
                       <Table.Td fz={"xs"}>{session.userName}</Table.Td>
                       <Table.Td>
-                        <SessionStatus status={session.status} />
+                        <SessionStatus
+                          status={session.status}
+                          error={session.error}
+                        />
                       </Table.Td>
                       <Table.Td fz={"xs"}>
                         {session.startDate.toLocaleString()}
@@ -239,7 +246,7 @@ export default function UserSessionList() {
                       </Table.Td>
                       <Table.Td>
                         <Group justify={"end"}>
-                          {session.status !== "STOPPED" && (
+                          {!isSessionEnded(session.status) && (
                             <SessionTerminateButton session={session} />
                           )}
                         </Group>

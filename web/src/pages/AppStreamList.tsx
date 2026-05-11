@@ -47,7 +47,11 @@ import { useConfig } from "../hooks/useConfig";
 import useStreamStart, {
   streamStartNotification,
 } from "../hooks/useStreamStart";
-import { getSessions, StreamingSessionPage } from "../state/Sessions";
+import {
+  getSessions,
+  isSessionEnded,
+  StreamingSessionPage,
+} from "../state/Sessions";
 import useNucleusSession from "@omniverse/auth/react/hooks/NucleusSession";
 import { AuthenticationType, getStreamingApp } from "../state/Apps";
 import { useCallbackRef } from "@mantine/hooks";
@@ -222,7 +226,7 @@ function AppStreamListModal({
                 <Table.Tr>
                   <Table.Th>#</Table.Th>
                   <Table.Th>User</Table.Th>
-                  <Table.Th w={125}>Status</Table.Th>
+                  <Table.Th maw={150}>Status</Table.Th>
                   <Table.Th>Start date</Table.Th>
                   <Table.Th>End date</Table.Th>
                   <Table.Th>Duration</Table.Th>
@@ -235,7 +239,10 @@ function AppStreamListModal({
                     <Table.Td fz={"xs"}>{session.id}</Table.Td>
                     <Table.Td fz={"xs"}>{session.userName}</Table.Td>
                     <Table.Td>
-                      <SessionStatus status={session.status} />
+                      <SessionStatus
+                        status={session.status}
+                        error={session.error}
+                      />
                     </Table.Td>
                     <Table.Td fz={"xs"}>
                       {session.startDate.toLocaleString()}
@@ -257,7 +264,7 @@ function AppStreamListModal({
                               Reconnect
                             </Button>
                           )}
-                        {session.status !== "STOPPED" && (
+                        {!isSessionEnded(session.status) && (
                           <SessionTerminateButton session={session} />
                         )}
                       </Group>

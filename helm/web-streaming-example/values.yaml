@@ -118,6 +118,41 @@ config:
     # This is the URL used for the example. Must end with /openid
     redirectUri: https://ovc-sample:3180/storage-api/openid
 
+  # Embedded MCP (Model Context Protocol) server.
+  # When enabled, the backend serves an MCP endpoint that lets agents such as
+  # Cursor and Claude Code list, publish and remove streaming applications.
+  # Users authenticate through the same identity provider via OAuth in the browser.
+  mcp:
+    # Whether to enable the embedded MCP server.
+    enabled: false
+
+    # Public URL of the MCP endpoint, used as the OAuth resource identifier.
+    # Must be reachable by MCP clients and routed to the backend service.
+    resourceUrl: "https://ovc-sample:3180/mcp"
+
+    # Path where the MCP Streamable HTTP endpoint is mounted on the host.
+    path: "/mcp"
+
+    # OAuth scopes required to access the MCP endpoint.
+    requiredScopes: []
+
+    # Path where the identity provider redirects back to the MCP broker.
+    # Combined with the resourceUrl host it forms the redirect URI that must be
+    # registered for the upstream confidential client (e.g. https://host/oauth/callback).
+    callbackPath: "/oauth/callback"
+
+    # Confidential client the MCP broker uses to authenticate users against the
+    # identity provider. This client must allow the host callback redirect URI.
+    upstreamClientId: ""
+    upstreamClientSecret: ""
+
+    # Scopes the MCP broker requests from the identity provider. These must be
+    # sufficient for group membership lookups used by admin-only tools.
+    upstreamScopes:
+      - openid
+      - profile
+      - email
+
   # Maximum session duration in seconds before users get disconnected.
   sessionTtl: 28800
 

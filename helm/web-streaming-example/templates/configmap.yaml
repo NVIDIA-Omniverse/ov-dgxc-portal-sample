@@ -85,3 +85,12 @@ data:
     max_app_instances_count = {{ .Values.config.maxAppInstancesCount | int }}
 
     h11_max_incomplete_event_size = {{ .Values.config.h11MaxIncompleteEventSize | int }}
+
+    mcp_enabled = {{ .Values.config.mcp.enabled }}
+    mcp_resource_url = {{ .Values.config.mcp.resourceUrl | toJson }}
+    mcp_path = {{ .Values.config.mcp.path | toJson }}
+    mcp_required_scopes = {{ .Values.config.mcp.requiredScopes | toJson }}
+    mcp_callback_path = {{ .Values.config.mcp.callbackPath | toJson }}
+    mcp_upstream_client_id = {{ .Values.config.mcp.upstreamClientId | toJson }}
+    mcp_upstream_client_secret = {{ .Values.config.mcp.upstreamClientSecret | toJson }}
+    mcp_upstream_scopes = {{ .Values.config.mcp.upstreamScopes | toJson }}

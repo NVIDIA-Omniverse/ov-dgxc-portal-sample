@@ -116,6 +116,7 @@ def create_session():
         nvcf_request_id: str = SESSION_NVCF_REQUEST_ID,
         start_date: datetime.datetime | None = sentinel,
         end_date: datetime.datetime | None = sentinel,
+        error: str | None = None,
     ):
         nonlocal count
         count += 1
@@ -146,6 +147,7 @@ def create_session():
             start_date=start_date,
             end_date=end_date,
             app=app,
+            error=error,
         )
 
     return create
@@ -347,6 +349,54 @@ async def test_session_sign_in_reconnect(
             assert str(session.end_date) == "2024-09-03 23:00:00+00:00"
 
 
+async def test_session_sign_in_reconnect_clears_error(
+    nvcf_server, websocket_server, cookies
+):
+    """A session with a previously reported error must start the next
+    streaming attempt from a clean slate."""
+    active_event = asyncio.Event()
+
+    async def listener(model, instance: SessionModel, *args):
+        if instance.status == SessionStatus.active:
+            active_event.set()
+
+    SessionModel.register_listener(Signals.post_save, listener)
+
+    async def accept(websocket: ServerConnection):
+        await websocket.send("SYN")
+        await websocket.recv()
+
+    async with nvcf_server(accept):
+        # First connection populates the session row.
+        async with connect(
+            SESSION_URL, additional_headers={"Cookie": cookies}
+        ) as ws:
+            assert await ws.recv() == "SYN"
+            await ws.send("ACK")
+            await ws.close()
+
+        await SessionModel.filter(id=SESSION_ID).update(
+            error="ICE failed; closing tab.",
+        )
+
+        active_event.clear()
+        async with connect(
+            SESSION_URL, additional_headers={"Cookie": cookies}
+        ) as ws:
+            assert await ws.recv() == "SYN"
+            await asyncio.wait_for(active_event.wait(), 5)
+
+            session = await SessionModel.get(
+                function_id=FUNCTION_ID,
+                function_version_id=FUNCTION_VERSION_ID,
+            )
+            assert session.status == SessionStatus.active
+            assert session.error is None
+
+            await ws.send("ACK")
+            await ws.close()
+
+
 async def test_session_sign_in_server_close_abnormally(
     nvcf_server, websocket_server, cookies
 ):
@@ -364,7 +414,42 @@ async def test_session_sign_in_server_close_abnormally(
             function_id=FUNCTION_ID,
             function_version_id=FUNCTION_VERSION_ID,
         )
-        assert session.status == SessionStatus.idle
+        assert session.status == SessionStatus.failed
+        assert session.error is not None
+        assert "1011" in session.error
+        assert "Test error." in session.error
+
+
+async def test_session_sign_in_server_close_preserves_client_reported_error(
+    nvcf_server, websocket_server, cookies
+):
+    """Verifies that a client-reported error already persisted on the session
+    (e.g. via a PATCH /sessions/{id}/ from the streaming SDK) is not
+    overwritten by the upstream-close error produced when the websocket
+    handler tears the session down."""
+
+    client_error = "STUN requests timed out before NVCF closed the stream."
+
+    async def accept(websocket: ServerConnection):
+        # Wait until the server-side handler has loaded the session, then
+        # simulate the PATCH /sessions/{id}/ writing a client error to the
+        # row before forcibly closing the upstream connection.
+        await SessionModel.filter(id=SESSION_ID).update(error=client_error)
+        await websocket.close(code=1011, reason="Test error.")
+
+    async with nvcf_server(accept):
+        with pytest.raises(websockets.exceptions.ConnectionClosedError):
+            async with connect(
+                SESSION_URL, additional_headers={"Cookie": cookies}
+            ) as ws:
+                await ws.recv()
+
+        session = await SessionModel.get(
+            function_id=FUNCTION_ID,
+            function_version_id=FUNCTION_VERSION_ID,
+        )
+        assert session.status == SessionStatus.failed
+        assert session.error == client_error
 
 
 async def test_session_sign_in_invalid_status(
@@ -389,6 +474,15 @@ async def test_session_sign_in_invalid_status(
         assert err.value.rcvd.code == 3001
         assert err.value.rcvd.reason == "Test error."
 
+        session = await SessionModel.get(
+            function_id=FUNCTION_ID,
+            function_version_id=FUNCTION_VERSION_ID,
+        )
+        assert session.status == SessionStatus.failed
+        assert session.error is not None
+        assert "404" in session.error
+        assert "Test error." in session.error
+
 
 async def test_session_sign_in_timeout(
     nvcf_server, websocket_server, cookies
@@ -408,6 +502,15 @@ async def test_session_sign_in_timeout(
 
         assert err.value.rcvd.code == 3008
         assert err.value.rcvd.reason == "Failed to connect a streaming session with a timeout -- try again later."
+
+        session = await SessionModel.get(
+            function_id=FUNCTION_ID,
+            function_version_id=FUNCTION_VERSION_ID,
+        )
+        assert session.status == SessionStatus.failed
+        assert session.error == (
+            "Failed to connect a streaming session with a timeout -- try again later."
+        )
 
 
 async def test_session_sign_in_client_close_abnormally(
@@ -623,7 +726,27 @@ async def test_check_expired_session(client, create_session):
     assert response.status_code == 404
 
     await session.refresh_from_db()
-    assert session.status == SessionStatus.stopped
+    assert session.status == SessionStatus.expired
+
+
+async def test_check_expired_session_with_error_is_failed(client, create_session):
+    session = await create_session(
+        session_id=SESSION_ID,
+        status=SessionStatus.idle,
+        error="STUN requests timed out.",
+    )
+    session.end_date = (
+        datetime.datetime.now(datetime.timezone.utc) -
+        datetime.timedelta(seconds=settings.session_ttl + 10)
+    )
+    await session.save()
+
+    response = await client.head(SESSION_PATH)
+    assert response.status_code == 404
+
+    await session.refresh_from_db()
+    assert session.status == SessionStatus.failed
+    assert session.error == "STUN requests timed out."
 
 
 async def test_get_all_sessions(client, create_session, create_app):
@@ -987,11 +1110,16 @@ async def test_session_timeout(
     await asyncio.wait_for(task, 5)
     assert nvcf.called
 
+    timed_out = await SessionModel.get(
+        function_id=FUNCTION_ID, function_version_id=FUNCTION_VERSION_ID
+    )
+    assert timed_out.status == SessionStatus.expired
+
 
 async def test_session_stopped_after_being_idle(
     session_timeout, client, create_session
 ):
-    disconnected_session = await create_session(
+    expired_session = await create_session(
         status=SessionStatus.idle,
         end_date=(
             datetime.datetime.now(datetime.timezone.utc) -
@@ -1000,8 +1128,8 @@ async def test_session_stopped_after_being_idle(
     )
     await asyncio.sleep(session_timeout * 2)
 
-    await disconnected_session.refresh_from_db()
-    assert disconnected_session.status == SessionStatus.stopped
+    await expired_session.refresh_from_db()
+    assert expired_session.status == SessionStatus.expired
 
 
 async def test_session_stop_orphaned_sessions(
@@ -1018,7 +1146,96 @@ async def test_session_stop_orphaned_sessions(
     await asyncio.sleep(session_timeout)
 
     await orphaned_session.refresh_from_db()
-    assert orphaned_session.status == SessionStatus.stopped
+    assert orphaned_session.status == SessionStatus.expired
+
+
+async def test_idle_watcher_promotes_session_with_error_to_failed(
+    session_timeout, client, create_session
+):
+    """Idle sessions that have an error already recorded (e.g. via PATCH
+    /sessions/{id}/) must be classified as FAILED rather than EXPIRED."""
+    session = await create_session(
+        status=SessionStatus.idle,
+        end_date=(
+            datetime.datetime.now(datetime.timezone.utc) -
+            datetime.timedelta(seconds=session_timeout)
+        ),
+        error="WebRTC ICE connection failed.",
+    )
+    await asyncio.sleep(session_timeout * 2)
+
+    await session.refresh_from_db()
+    assert session.status == SessionStatus.failed
+    assert session.error == "WebRTC ICE connection failed."
+
+
+async def test_idle_watcher_promotes_orphaned_session_with_error_to_failed(
+    session_timeout, client, create_session
+):
+    session = await create_session(
+        status=SessionStatus.idle,
+        start_date=(
+            datetime.datetime.now(datetime.timezone.utc) -
+            datetime.timedelta(seconds=session_timeout)
+        ),
+        end_date=None,
+        error="STUN allocation failed.",
+    )
+    await asyncio.sleep(session_timeout * 2)
+
+    await session.refresh_from_db()
+    assert session.status == SessionStatus.failed
+    assert session.error == "STUN allocation failed."
+
+
+async def test_session_timeout_with_error_is_failed(
+    session_timeout, nvcf_server, websocket_server, cookies, respx_mock
+):
+    """The TTL watcher must classify long-running sessions as FAILED when
+    the streaming SDK has already reported an error against them."""
+    connected = asyncio.Event()
+
+    async def accept(websocket: ServerConnection):
+        while True:
+            await websocket.send("SYN")
+            await websocket.recv()
+            await asyncio.sleep(0.5)
+
+    async def send():
+        async with nvcf_server(accept):
+            with pytest.raises(websockets.ConnectionClosedError) as err:
+                async with connect(
+                    SESSION_URL, additional_headers={"Cookie": cookies}
+                ) as ws:
+                    while True:
+                        syn = await ws.recv()
+                        assert syn == "SYN"
+
+                        connected.set()
+                        await ws.recv()
+
+                        await asyncio.sleep(0.5)
+            assert err.value.rcvd.code == 3010
+            assert err.value.rcvd.reason == "Timed out."
+
+    task = asyncio.create_task(send())
+    await asyncio.wait_for(connected.wait(), 5)
+
+    # Simulate a PATCH /sessions/{id}/ from the client recording a WebRTC
+    # error before the TTL watcher tears the session down.
+    await SessionModel.filter(id=SESSION_ID).update(
+        error="DataChannel closed unexpectedly.",
+    )
+
+    nvcf = respx_mock.delete(construct_nvcf_endpoint())
+    await asyncio.wait_for(task, 5)
+    assert nvcf.called
+
+    timed_out = await SessionModel.get(
+        function_id=FUNCTION_ID, function_version_id=FUNCTION_VERSION_ID
+    )
+    assert timed_out.status == SessionStatus.failed
+    assert timed_out.error == "DataChannel closed unexpectedly."
 
 
 async def test_terminate_session_is_unauthorized_for_anonymous_user(client):
@@ -1057,11 +1274,129 @@ async def test_terminate_session_no_longer_available(client, create_session, res
     assert nvcf.called
 
 
-async def test_terminate_stopped_session(client, create_session):
-    session = await create_session(status=SessionStatus.stopped)
+@pytest.mark.parametrize(
+    "terminal_status",
+    [SessionStatus.stopped, SessionStatus.expired, SessionStatus.failed],
+)
+async def test_terminate_session_already_ended(
+    client, create_session, terminal_status,
+):
+    session = await create_session(status=terminal_status)
 
     response = await client.delete(f"/sessions/{session.id}")
     assert response.status_code == 204
+
+
+async def test_update_session_records_error(user_client, create_session):
+    session = await create_session(status=SessionStatus.active)
+
+    response = await user_client.patch(
+        f"/sessions/{session.id}/",
+        json={"error": "STUN requests timed out."},
+    )
+    assert response.status_code == 204
+
+    await session.refresh_from_db()
+    assert session.error == "STUN requests timed out."
+    assert session.status == SessionStatus.active
+
+
+async def test_update_session_clears_error(user_client, create_session):
+    session = await create_session(status=SessionStatus.active)
+    session.error = "Previous error."
+    await session.save()
+
+    response = await user_client.patch(
+        f"/sessions/{session.id}/",
+        json={"error": None},
+    )
+    assert response.status_code == 204
+
+    await session.refresh_from_db()
+    assert session.error is None
+
+
+async def test_update_session_empty_body_is_noop(user_client, create_session):
+    session = await create_session(status=SessionStatus.active)
+    session.error = "Previous error."
+    await session.save()
+
+    response = await user_client.patch(f"/sessions/{session.id}/", json={})
+    assert response.status_code == 204
+
+    await session.refresh_from_db()
+    assert session.error == "Previous error."
+
+
+async def test_update_session_rejects_oversized_error(user_client, create_session):
+    session = await create_session(status=SessionStatus.active)
+
+    response = await user_client.patch(
+        f"/sessions/{session.id}/",
+        json={"error": "x" * 5000},
+    )
+    assert response.status_code == 422
+
+    await session.refresh_from_db()
+    assert session.error is None
+
+
+async def test_update_session_is_unauthorized_for_anonymous_user(client):
+    del client.cookies["id_token"]
+
+    response = await client.patch(
+        "/sessions/test/",
+        json={"error": "Test error."},
+    )
+    assert response.status_code == 401
+
+
+async def test_update_session_returns_404_for_session_owned_by_another_user(
+    user_client, create_session,
+):
+    session = await create_session(user_id="other-user", status=SessionStatus.active)
+
+    response = await user_client.patch(
+        f"/sessions/{session.id}/",
+        json={"error": "Test error."},
+    )
+    assert response.status_code == 404
+
+    await session.refresh_from_db()
+    assert session.error is None
+
+
+async def test_update_session_admin_can_update_any_session(
+    client, create_session,
+):
+    session = await create_session(user_id="other-user", status=SessionStatus.active)
+
+    response = await client.patch(
+        f"/sessions/{session.id}/",
+        json={"error": "Recorded by admin."},
+    )
+    assert response.status_code == 204
+
+    await session.refresh_from_db()
+    assert session.error == "Recorded by admin."
+
+
+async def test_update_session_not_found(user_client):
+    response = await user_client.patch(
+        "/sessions/does-not-exist/",
+        json={"error": "Test error."},
+    )
+    assert response.status_code == 404
+
+
+async def test_get_session_returns_recorded_error(user_client, create_session):
+    session = await create_session(status=SessionStatus.failed)
+    session.error = "Persisted error."
+    await session.save()
+
+    response = await user_client.get(f"/sessions/{session.id}")
+    assert response.status_code == 200
+    assert response.json()["error"] == "Persisted error."
 
 
 async def test_terminate_session_timeout(client, create_session, respx_mock):

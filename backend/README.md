@@ -153,6 +153,108 @@ curl -X 'PUT' \
   ]'
 ```
 
+## MCP server (Model Context Protocol)
+
+The backend can expose an embedded MCP server that lets AI agents such as Cursor
+and Claude Code list, inspect, publish and remove streaming applications. It runs
+in the same process as the backend and reuses the same database, NVCF integration
+and identity provider. Publishing and removing applications requires membership in
+the `admin_group`, exactly like the REST API.
+
+Enable it in `settings.toml`:
+
+```toml
+mcp_enabled = true
+
+# Public URL of the MCP endpoint, used as the OAuth resource identifier.
+# It must be reachable by MCP clients and routed to the backend.
+mcp_resource_url = "https://your-portal/mcp"
+
+# Optional. Path where the MCP endpoint is mounted (default "/mcp").
+mcp_path = "/mcp"
+
+# Optional. OAuth scopes required to access the MCP endpoint.
+mcp_required_scopes = []
+
+# Confidential client the broker uses to log users in against the identity
+# provider. Required when MCP is enabled and auth is not disabled.
+mcp_upstream_client_id = "<idp client id>"
+mcp_upstream_client_secret = "<idp client secret>"
+
+# Optional. Scopes requested from the identity provider. Must be sufficient for
+# group membership lookups used by the admin-only publish/remove tools.
+mcp_upstream_scopes = ["openid", "profile", "email"]
+
+# Optional. Path the identity provider redirects back to (default "/oauth/callback").
+mcp_callback_path = "/oauth/callback"
+```
+
+### How authentication works
+
+The backend embeds its own OAuth 2.1 authorization server and brokers the login
+to the portal identity provider. This lets MCP clients run the standard browser
+PKCE flow even though the identity provider does not advertise PKCE or Dynamic
+Client Registration.
+
+```
+Cursor / Claude Code  -->  Backend MCP (authorization server)  -->  Identity provider
+        ^  PKCE + DCR              |  confidential client                 |
+        +--------------------------+  authorization code  <--------------+
+```
+
+1. The client discovers the resource metadata at
+   `/.well-known/oauth-protected-resource{mcp_path}`, which points to the backend
+   as the authorization server.
+2. The client dynamically registers and starts the PKCE flow at the backend
+   `/authorize` endpoint. The backend advertises `S256` and a registration
+   endpoint, so no client configuration is needed.
+3. The backend redirects the browser to the identity provider using the
+   confidential client (`mcp_upstream_client_id` / `mcp_upstream_client_secret`).
+4. The identity provider redirects back to `{host}{mcp_callback_path}`, the
+   backend exchanges the upstream code, then issues its own opaque token to the
+   client.
+5. The client calls the MCP endpoint with that token. Publishing and removing
+   applications additionally require membership in the `admin_group`.
+
+The endpoints are served on the host root (not under `/api`). When deploying with
+the Helm chart, set `config.mcp.enabled=true` and provide
+`config.mcp.upstreamClientId` / `config.mcp.upstreamClientSecret`; the chart routes
+`/mcp`, the OAuth metadata, `/authorize`, `/token`, `/register`, `/revoke` and the
+callback to the backend automatically.
+
+Registered clients, authorization codes and tokens are persisted in the database
+via Tortoise (the `mcp_*` tables), so the flow works across multiple backend
+replicas. Apply the schema with `poetry run migrations`.
+
+### Identity provider client
+
+Register a confidential client (authorization-code grant) with the identity
+provider and allow the redirect URI `{host}{mcp_callback_path}`, for example
+`https://your-portal/oauth/callback`. Use its credentials for
+`mcp_upstream_client_id` and `mcp_upstream_client_secret`.
+
+### Register with clients
+
+Cursor (`mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "portal-apps": { "url": "https://your-portal/mcp" }
+  }
+}
+```
+
+Claude Code:
+
+```bash
+claude mcp add --transport http portal-apps https://your-portal/mcp
+```
+
+Then trigger the connection and complete the browser login. No client ID or
+callback configuration is required, since the backend handles registration and
+PKCE itself.
+
 ### Migrations
 
 To generate migrations for updated database models, use the `aerich migrate` command and then `poetry run migrations`.

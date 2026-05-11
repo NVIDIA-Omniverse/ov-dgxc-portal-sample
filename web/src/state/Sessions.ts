@@ -38,7 +38,15 @@ const StreamingSession = fromSnakeCaseSchema(
     nvcfRequestId: z.string().nullable().optional(),
     userId: z.string(),
     userName: z.string(),
-    status: z.enum(["CONNECTING", "ACTIVE", "IDLE", "STOPPED"]),
+    status: z.enum([
+      "CONNECTING",
+      "ACTIVE",
+      "IDLE",
+      "STOPPED",
+      "EXPIRED",
+      "FAILED",
+    ]),
+    error: z.string().nullable().optional(),
     startDate: z.coerce.date(),
     endDate: z.coerce.date().nullable(),
     duration: z.number(),
@@ -54,6 +62,19 @@ const StreamingSession = fromSnakeCaseSchema(
 );
 
 export type StreamingSession = z.infer<typeof StreamingSession>;
+
+/**
+ * Statuses that represent a session that has ended (no longer running).
+ */
+export const TERMINAL_SESSION_STATUSES = [
+  "STOPPED",
+  "EXPIRED",
+  "FAILED",
+] as const satisfies ReadonlyArray<StreamingSession["status"]>;
+
+export function isSessionEnded(status: StreamingSession["status"]): boolean {
+  return (TERMINAL_SESSION_STATUSES as readonly string[]).includes(status);
+}
 
 const StreamingSessionPage = createPaginatedSchema(StreamingSession);
 
@@ -193,6 +214,39 @@ export async function terminateSession({
     const text = await response.text();
     throw new HttpError(
       `Failed to terminate the session -- HTTP${response.status}.\n${text}`,
+      response.status,
+    );
+  }
+}
+
+export interface ReportSessionErrorParams {
+  config: Config;
+  sessionId: string;
+  error: string | null;
+}
+
+/**
+ * Records a client-side error against the streaming session so it can be
+ * surfaced on the session list and inspected by administrators.
+ * Pass `null` as `error` to clear a previously reported error.
+ */
+export async function reportSessionError({
+  config,
+  sessionId,
+  error,
+}: ReportSessionErrorParams): Promise<void> {
+  const response = await fetch(
+    `${config.endpoints.backend}/sessions/${sessionId}/`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error }),
+    },
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new HttpError(
+      `Failed to report a session error -- HTTP${response.status}.\n${text}`,
       response.status,
     );
   }

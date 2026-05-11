@@ -34,7 +34,7 @@ ENV PYTHONUNBUFFERED=1 \
     \
     # poetry
     # https://python-poetry.org/docs/configuration/#using-environment-variables
-    POETRY_VERSION=2.3.2 \
+    POETRY_VERSION=2.3.3 \
     # make poetry install to this location
     POETRY_HOME="/opt/poetry" \
     # make poetry create the virtual environment in the project's root
@@ -45,7 +45,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 ENV PATH="$POETRY_HOME/bin:$PATH"
 
-RUN apk update && apk --no-cache add \
+RUN apk update && apk upgrade --no-cache && apk --no-cache add \
         # deps for installing poetry
         curl
 

@@ -56,5 +56,18 @@ spec:
                 name: {{ $fullName }}
                 port:
                   number: {{ $backendPort }}
+          {{- if $.Values.config.mcp.enabled }}
+          {{- $mcpServerPath := $.Values.config.mcp.path | default "/mcp" }}
+          {{- $mcpCallbackPath := $.Values.config.mcp.callbackPath | default "/oauth/callback" }}
+          {{- range $mcpPath := list $mcpServerPath "/.well-known/oauth-protected-resource" "/.well-known/oauth-authorization-server" "/authorize" "/token" "/register" "/revoke" $mcpCallbackPath }}
+          - path: {{ $mcpPath }}
+            pathType: {{ if contains "." $mcpPath }}ImplementationSpecific{{ else }}Prefix{{ end }}
+            backend:
+              service:
+                name: {{ $fullName }}
+                port:
+                  number: {{ $backendPort }}
+          {{- end }}
+          {{- end }}
     {{- end }}
 {{- end }}

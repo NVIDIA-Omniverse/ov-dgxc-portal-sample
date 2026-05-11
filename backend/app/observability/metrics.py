@@ -235,6 +235,7 @@ def emit_session_end_metrics(session: SessionModel):
         "session.username": session.user_name,
         "nvcf.function_id": str(session.function_id),
         "nvcf.function_version_id": str(session.function_version_id),
+        "session.status": session.status,
     }
     session_end.add(1, metric_attrs)
     session_duration.record(session.duration, metric_attrs)

@@ -193,8 +193,19 @@ class SessionStatus(str, Enum):
     # Only used for filtering.
     alive = "ALIVE"
 
-    # The session has been stopped by the user or system administrator.
+    # The session has been explicitly terminated by an end-user or
+    # by a system administrator.
     stopped = "STOPPED"
+
+    # The session ended without explicit user action: a connected client
+    # disconnected (browser tab closed, connection lost) and the session was
+    # cleaned up by the idle/timeout watcher.
+    expired = "EXPIRED"
+
+    # The session ended due to an upstream error: NVCF rejected the
+    # connection, the streaming application crashed, or the connection to
+    # NVCF was closed abnormally.
+    failed = "FAILED"
 
 
 class SessionModel(Model):
@@ -218,6 +229,7 @@ class SessionModel(Model):
     start_date = fields.DatetimeField(auto_now_add=True)
     end_date = fields.DatetimeField(null=True)
     duration = fields.IntField(default=0)
+    error = fields.TextField(null=True, default=None)
 
     class Meta:
         table = "session"
@@ -250,3 +262,77 @@ class PublishedPageModel(Model):
 PublishedPage: Type[PydanticModel] = pydantic_model_creator(
     PublishedPageModel, name="PublishedPage"
 )
+
+
+class McpOAuthClientModel(Model):
+    """A dynamically registered MCP OAuth client (RFC 7591)."""
+
+    client_id = fields.CharField(primary_key=True, max_length=128)
+    client_info = fields.JSONField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "mcp_oauth_client"
+
+
+class McpAuthTransactionModel(Model):
+    """An in-flight brokered login awaiting the identity provider redirect."""
+
+    id = fields.CharField(primary_key=True, max_length=128)
+    client_id = fields.CharField(max_length=128)
+    redirect_uri = fields.TextField()
+    redirect_uri_provided_explicitly = fields.BooleanField()
+    code_challenge = fields.CharField(max_length=256)
+    scopes = fields.JSONField()
+    client_state = fields.TextField(null=True)
+    resource = fields.TextField(null=True)
+    expires_at = fields.FloatField()
+
+    class Meta:
+        table = "mcp_auth_transaction"
+
+
+class McpUserGrantModel(Model):
+    """Shared fields for grants that carry a resolved portal user."""
+
+    client_id = fields.CharField(max_length=128)
+    scopes = fields.JSONField()
+    expires_at = fields.FloatField()
+    subject = fields.CharField(max_length=256, null=True)
+    user_id_token = fields.TextField()
+    user_access_token = fields.TextField(null=True)
+    user_payload = fields.JSONField()
+
+    class Meta:
+        abstract = True
+
+
+class McpAuthCodeModel(McpUserGrantModel):
+    """A broker-issued authorization code exchanged for tokens at /token."""
+
+    code = fields.CharField(primary_key=True, max_length=128)
+    code_challenge = fields.CharField(max_length=256)
+    redirect_uri = fields.TextField()
+    redirect_uri_provided_explicitly = fields.BooleanField()
+    resource = fields.TextField(null=True)
+
+    class Meta:
+        table = "mcp_auth_code"
+
+
+class McpAccessTokenModel(McpUserGrantModel):
+    """A broker-issued access token validated on MCP requests."""
+
+    token = fields.CharField(primary_key=True, max_length=128)
+
+    class Meta:
+        table = "mcp_access_token"
+
+
+class McpRefreshTokenModel(McpUserGrantModel):
+    """A broker-issued refresh token exchanged for new tokens."""
+
+    token = fields.CharField(primary_key=True, max_length=128)
+
+    class Meta:
+        table = "mcp_refresh_token"

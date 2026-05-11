@@ -36,6 +36,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Config } from "../providers/ConfigProvider";
 import { StreamingApp } from "../state/Apps";
+import { reportSessionError } from "../state/Sessions";
 import { getResolution } from "../state/StreamResolution";
 import { useConfig } from "./useConfig";
 import useError from "./useError";
@@ -244,6 +245,24 @@ export default function useStream({
     config,
     setError,
   ]);
+
+  // Forward any error reported during the streaming session to the backend
+  // so it can be persisted on the session record and surfaced on the
+  // session list page for diagnostics.
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+    if (!error) {
+      return;
+    }
+    const message = typeof error === "string" ? error : (error as Error).message;
+    void reportSessionError({ config, sessionId, error: message }).catch(
+      (reportError) => {
+        console.error("Failed to report session error:", reportError);
+      },
+    );
+  }, [config, error, sessionId]);
 
   const terminate = useCallback(async () => {
     try {
